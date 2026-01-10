@@ -708,6 +708,7 @@ Hope Genome is my contribution to ensuring that AI becomes a tool of truth, not 
 
 **VAS SZIGORA - Iron Discipline. No escape from ethics.**
 
-Built with ❤️ by Máté Róbert and Claude
+Architect: Máté Róbert
 
-🤖 Built with [Claude Code](https://claude.com/claude-code)
+Vision & Soul: Steiner Szilvia
+
