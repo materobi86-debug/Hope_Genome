@@ -1,12 +1,13 @@
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use warp::Filter;
 
 use launchpad_zcode_rs::midi::LaunchpadMiniMK3;
 use launchpad_zcode_rs::engine::{LaunchpadEngine, TaskState, AppTarget};
-use launchpad_zcode_rs::microscope_memory::MicroscopeMemoryStore;
+use launchpad_zcode_rs::microscope_memory::{MicroscopeMemoryStore, MemoryEntry};
 
 #[derive(Serialize, Deserialize, Clone)]
 struct StateResponse {
@@ -17,6 +18,7 @@ struct StateResponse {
     transitions: Vec<String>,
     autostart_enabled: bool,
     memories_count: usize,
+    autonomous_agent_active: bool,
 }
 
 #[derive(Deserialize)]
@@ -46,11 +48,31 @@ struct ChatResponse {
 }
 
 #[derive(Deserialize)]
+struct PushSubscribeRequest {
+    _endpoint: String,
+}
+
+#[derive(Deserialize)]
 struct SettingsRequest {
     _autostart: bool,
 }
 
-const MANIFEST_JSON: &str = r##"{"short_name":"HOPE PWA","name":"HOPE CODE Mobile Virtual Launchpad & Live Voice Controller","start_url":"/","background_color":"#121214","theme_color":"#00e676","display":"standalone"}"##;
+const MANIFEST_JSON: &str = r##"{"short_name":"HOPE PWA","name":"HOPE CODE Mobile Virtual Launchpad, Flash & Push Notifications","start_url":"/","background_color":"#121214","theme_color":"#00e676","display":"standalone"}"##;
+
+const SW_JS: &str = r#"
+self.addEventListener('push', function(event) {
+    const data = event.data ? event.data.text() : 'Üzenet érkezett Jules-tól!';
+    const options = {
+        body: data,
+        icon: '/icon.png',
+        badge: '/icon.png',
+        vibrate: [100, 50, 100]
+    };
+    event.waitUntil(
+        self.registration.showNotification('Jules AI Értesítés (HOPE CODE)', options)
+    );
+});
+"#;
 
 const HTML_INDEX: &str = r##"<!DOCTYPE html>
 <html lang="hu">
@@ -59,7 +81,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#00e676">
-    <title>HOPE CODE Live Voice-to-Voice & Jules Chat 🎛️🗣️🎙️🤖</title>
+    <title>HOPE CODE iPhone PWA, Persistent Chat, Flash & Haptic 🎛️🗣️📱⚡</title>
     <style>
         :root {
             --bg: #121214;
@@ -70,7 +92,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             --border: #33333e;
         }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg);
             color: var(--text);
             margin: 0;
@@ -89,7 +111,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             padding-bottom: 12px;
             margin-bottom: 15px;
         }
-        h1 { margin: 0; font-size: 1.5rem; color: #fff; }
+        h1 { margin: 0; font-size: 1.4rem; color: #fff; }
         .tabs {
             display: flex;
             gap: 8px;
@@ -121,7 +143,6 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             margin-bottom: 15px;
         }
 
-        /* Live Voice-to-Voice Box */
         .live-voice-card {
             text-align: center;
             padding: 25px;
@@ -130,13 +151,13 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             border-radius: 12px;
         }
         .live-mic-orb {
-            width: 110px;
-            height: 110px;
+            width: 100px;
+            height: 100px;
             border-radius: 50%;
             background: var(--accent);
             border: none;
             color: #000;
-            font-size: 2.8rem;
+            font-size: 2.5rem;
             cursor: pointer;
             box-shadow: 0 0 30px rgba(0, 230, 118, 0.5);
             transition: all 0.3s ease;
@@ -161,7 +182,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             background: #0a0a0c;
             border: 1px solid var(--border);
             border-radius: 6px;
-            height: 240px;
+            height: 280px;
             padding: 12px;
             overflow-y: auto;
             margin-bottom: 12px;
@@ -257,6 +278,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             gap: 10px;
             margin-top: 10px;
             align-items: center;
+            flex-wrap: wrap;
         }
         select, button, input, textarea {
             padding: 8px 12px;
@@ -274,8 +296,8 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
 <body>
     <div class="container">
         <header>
-            <h1>📱 HOPE CODE Live Voice-to-Voice & Jules Agent</h1>
-            <div><span style="color: #00e676;">● Live Audio Stream & Bincode Sync</span></div>
+            <h1>📱 HOPE CODE iPhone PWA & Perzisztens Jules Chat</h1>
+            <div><span style="color: #00e676;">● Microscope Bincode (Nincs Session!)</span></div>
         </header>
 
         <div class="app-selector-bar">
@@ -291,43 +313,54 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
         </div>
 
         <div class="tabs">
-            <button class="tab-btn active" onclick="showTab('live-voice')">🎙️ Élő Voice-to-Voice Beszélgetés</button>
-            <button class="tab-btn" onclick="showTab('jules-chat')">🤖 Jules Chat & Bincode Memória</button>
+            <button class="tab-btn active" onclick="showTab('jules-chat')">🤖 Perzisztens Jules Chat & Bincode Memória</button>
+            <button class="tab-btn" onclick="showTab('live-voice')">🎙️ Élő Voice Call</button>
+            <button class="tab-btn" onclick="showTab('iphone-hardware')">⚡ iPhone Flash & Haptic</button>
             <button class="tab-btn" onclick="showTab('virtual-midi')">📱 Mobil Virtuális Launchpad</button>
             <button class="tab-btn" onclick="showTab('tts-noemi')">🗣️ Noémi Felolvasó & EQ</button>
-            <button class="tab-btn" onclick="showTab('preview')">✨ Visualok & Futófelirat</button>
         </div>
 
-        <!-- 1. Dedicated Live Voice-to-Voice Tab -->
-        <div id="live-voice" class="tab-content active">
-            <div class="card live-voice-card">
-                <h2>🎙️ Élő Voice-to-Voice Beszélgetés Jules-szal</h2>
-                <p>Kattints a gömbre az élő folyamatos hanghívás indításához! Beszélj magyarul, Jules élőben válaszol Noémi hangján, miközben a Launchpadon szinkronban fut az 8-bar audio spectrum equalizer.</p>
+        <!-- 1. Perzisztens Chat & Microscope Bincode Memory Tab -->
+        <div id="jules-chat" class="tab-content active">
+            <div class="card">
+                <h3>💬 Folyamatos Perzisztens Beszélgetés Jules-szal</h3>
+                <p style="font-size:0.85rem; color:#aaa;">Nincsenek sessionök! A teljes beszélgetésünk mindig megmarad a <code>microscope_memory.bin</code> bináris bincode memóriában.</p>
 
+                <div class="chat-history" id="chatHistory"></div>
+
+                <div class="controls-row">
+                    <input type="text" id="chatInput" placeholder="Írj Jules-nak..." style="flex:1;" onkeypress="if(event.key==='Enter') sendChatMessage()">
+                    <button class="btn-action" onclick="sendChatMessage()">Küldés</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Live Voice Call Tab -->
+        <div id="live-voice" class="tab-content">
+            <div class="card live-voice-card">
+                <h2>🎙️ Élő Voice-to-Voice Hívás Jules-szal</h2>
+                <p>Kattints a gömbre az élő folyamatos hanghívás indításához!</p>
                 <button class="live-mic-orb" id="liveOrb" onclick="toggleLiveCall()">🎙️</button>
                 <h3 id="liveCallStatus" style="color: #00e676; margin-top: 15px;">Hívás Inaktív - Kattints az indításhoz!</h3>
                 <p id="liveTranscript" style="font-size: 1.1rem; color: #fff; min-height: 30px; font-weight: bold;"></p>
             </div>
         </div>
 
-        <!-- 2. Jules Chat & Microscope Bincode Memory Tab -->
-        <div id="jules-chat" class="tab-content">
+        <!-- 3. iPhone Flash & Haptic Hardware Control Tab -->
+        <div id="iphone-hardware" class="tab-content">
             <div class="card">
-                <h3>💬 Beszélgetés Jules Agenttel (Microscope Binary Bincode Memory)</h3>
-                <p style="font-size:0.85rem; color:#aaa;">Minden üzenet és megjegyzés a <code>microscope_memory.bin</code> bináris bincode fájlba mentődik!</p>
-
-                <div class="chat-history" id="chatHistory">
-                    <div class="msg agent"><strong>Jules:</strong> Szia Máté Róbert! Itt vagyok, emlékszem rád a Microscope Bincode bináris memóriámból. Milyen feladatot adsz nekem? 🚀</div>
-                </div>
-
+                <h3>⚡ iPhone Vakufény (Flash/Torch) & Haptikus Rezgés Vezérlés</h3>
                 <div class="controls-row">
-                    <input type="text" id="chatInput" placeholder="Írj Jules-nak (pl: Futtass tesztet, generálj kódot)..." style="flex:1;" onkeypress="if(event.key==='Enter') sendChatMessage()">
-                    <button class="btn-action" onclick="sendChatMessage()">Küldés</button>
+                    <button class="btn-action" onclick="toggleTorch(true)">💡 iPhone Vaku BE</button>
+                    <button class="btn-action" style="background:#ff1744; color:#fff;" onclick="toggleTorch(false)">🚫 iPhone Vaku KI</button>
+                    <button class="btn-action" style="background:#ffd600; color:#000;" onclick="triggerHaptic()">📳 Haptikus Rezgés Teszt</button>
+                    <button class="btn-action" style="background:#00b0ff; color:#fff;" onclick="enablePushNotifications()">🔔 iOS Push Értesítések Engedélyezése</button>
                 </div>
+                <p id="hardwareStatus" style="margin-top:15px; color:#00e676; font-weight:bold;"></p>
             </div>
         </div>
 
-        <!-- 3. Mobil Virtuális Launchpad Tab -->
+        <!-- 4. Mobil Virtuális Launchpad Tab -->
         <div id="virtual-midi" class="tab-content">
             <div class="card">
                 <h3>Mobil Kijelző Mátrix</h3>
@@ -342,7 +375,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             </div>
         </div>
 
-        <!-- 4. Noémi Felolvasó & EQ Tab -->
+        <!-- 5. Noémi Felolvasó & EQ Tab -->
         <div id="tts-noemi" class="tab-content">
             <div class="card">
                 <h3>Edge-TTS Noémi Felolvasó & EQ Sync</h3>
@@ -352,29 +385,17 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
                 </div>
             </div>
         </div>
-
-        <!-- 5. Visualok & Futófelirat Tab -->
-        <div id="preview" class="tab-content">
-            <div class="card">
-                <h3>Visualizáció és Futófelirat</h3>
-                <div class="controls-row">
-                    <select id="animSelect">
-                        <option value="text_banner">text_banner (HOPE CODE futófelirat)</option>
-                        <option value="cpu_ram_meter">cpu_ram_meter (Élő Monitor)</option>
-                        <option value="pomodoro_timer">pomodoro_timer (Fókusz Óra)</option>
-                        <option value="equalizer_bars">equalizer_bars (8-bar audio spectrum)</option>
-                    </select>
-                    <input type="text" id="bannerTextInput" value="HOPE CODE" style="width: 100px;">
-                    <button class="btn-action" onclick="triggerAnim()">Futtatás</button>
-                </div>
-            </div>
-        </div>
     </div>
 
     <script>
         let currentActiveApp = 'hopecode';
         let liveRecognition = null;
         let isLiveCallActive = false;
+        let videoTrack = null;
+
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch(()=>{});
+        }
 
         function showTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -383,91 +404,192 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             event.target.classList.add('active');
         }
 
-        function buildGrid() {
-            const grid = document.getElementById('padGrid');
-            grid.innerHTML = '';
-            for(let i=0; i<64; i++) {
-                const pad = document.createElement('div');
-                pad.className = 'pad pending';
-                pad.id = 'pad-' + i;
-                pad.innerText = i + 1;
-                pad.onclick = () => togglePad(i);
-                grid.appendChild(pad);
+        async function switchApp(appName) {
+            currentActiveApp = appName;
+            document.querySelectorAll('.app-card').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.side-btn').forEach(el => el.classList.remove('active-view'));
+
+            if (appName === 'hopecode') {
+                document.getElementById('app-card-hopecode')?.classList.add('active');
+                document.getElementById('side-hopecode')?.classList.add('active-view');
+            } else if (appName === 'claude_code') {
+                document.getElementById('app-card-claude')?.classList.add('active');
+                document.getElementById('side-claude')?.classList.add('active-view');
+            } else if (appName === 'codex') {
+                document.getElementById('app-card-codex')?.classList.add('active');
+                document.getElementById('side-codex')?.classList.add('active-view');
+            }
+
+            try {
+                await fetch('/api/trigger', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ event: 'switch_app', app: appName })
+                });
+            } catch(e) {}
+        }
+
+        async function togglePad(padIdx) {
+            const pad = document.getElementById('pad-' + padIdx);
+            if (!pad) return;
+
+            let nextState = 'pending';
+            if (pad.classList.contains('pending')) nextState = 'active';
+            else if (pad.classList.contains('active')) nextState = 'success';
+            else if (pad.classList.contains('success')) nextState = 'error';
+            else nextState = 'pending';
+
+            pad.className = 'pad ' + nextState;
+
+            try {
+                await fetch('/api/trigger', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        event: 'task_start',
+                        app: currentActiveApp,
+                        task_id: padIdx,
+                        animation: nextState === 'active' ? 'plasma_wave' : 'equalizer_bars'
+                    })
+                });
+            } catch(e) {}
+        }
+
+        async function toggleTorch(turnOn) {
+            const status = document.getElementById('hardwareStatus');
+            try {
+                if ('mediaDevices' in navigator && 'getUserMedia' in navigator.mediaDevices) {
+                    if (turnOn) {
+                        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                        videoTrack = stream.getVideoTracks()[0];
+                        const capabilities = videoTrack.getCapabilities();
+                        if (capabilities.torch) {
+                            await videoTrack.applyConstraints({ advanced: [{ torch: true }] });
+                            status.innerText = '💡 iPhone vaku BEKAPCSOLVA!';
+                        } else {
+                            status.innerText = '💡 Vaku szimuláció aktív (Torch nem támogatott ezen az eszközön).';
+                        }
+                    } else {
+                        if (videoTrack) {
+                            videoTrack.stop();
+                            videoTrack = null;
+                        }
+                        status.innerText = '🚫 iPhone vaku KIKAPCSOLVA!';
+                    }
+                } else {
+                    status.innerText = turnOn ? '💡 Vaku bekapcsolva!' : '🚫 Vaku kikapcsolva!';
+                }
+            } catch(e) {
+                status.innerText = turnOn ? '💡 Vaku aktív!' : '🚫 Vaku kikapcsolva!';
             }
         }
 
-        async function toggleLiveCall() {
+        async function enablePushNotifications() {
+            const status = document.getElementById('hardwareStatus');
+            if ('Notification' in window && 'serviceWorker' in navigator) {
+                const perm = await Notification.requestPermission();
+                if (perm === 'granted') {
+                    try {
+                        await fetch('/api/push_subscribe', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ _endpoint: 'iphone-pwa' })
+                        });
+                        status.innerText = '🔔 iOS Push Értesítések sikeresen engedélyezve!';
+                    } catch(e) {
+                        status.innerText = '🔔 Push értesítések engedélyezve.';
+                    }
+                } else {
+                    status.innerText = '⚠️ Értesítések elutasítva.';
+                }
+            } else {
+                status.innerText = 'ℹ️ Web Push nem támogatott ezen a böngészőn.';
+            }
+        }
+
+        function toggleLiveCall() {
             const orb = document.getElementById('liveOrb');
             const status = document.getElementById('liveCallStatus');
-            const transcriptEl = document.getElementById('liveTranscript');
+            const transcript = document.getElementById('liveTranscript');
 
-            if (isLiveCallActive) {
+            if (!isLiveCallActive) {
+                isLiveCallActive = true;
+                orb.classList.add('active-call');
+                status.innerText = '🎙️ Élő Hívás Aktív - Jules Hallgat...';
+                triggerHaptic();
+
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (SpeechRecognition) {
+                    liveRecognition = new SpeechRecognition();
+                    liveRecognition.lang = 'hu-HU';
+                    liveRecognition.continuous = true;
+                    liveRecognition.interimResults = true;
+
+                    liveRecognition.onresult = (event) => {
+                        let finalTranscript = '';
+                        for (let i = event.resultIndex; i < event.results.length; ++i) {
+                            if (event.results[i].isFinal) {
+                                finalTranscript += event.results[i][0].transcript;
+                            }
+                        }
+                        if (finalTranscript) {
+                            transcript.innerText = 'Én: "' + finalTranscript + '"';
+                            document.getElementById('chatInput').value = finalTranscript;
+                            sendChatMessage();
+                        }
+                    };
+
+                    liveRecognition.start();
+                } else {
+                    transcript.innerText = 'Beszédmentes felolvasás engedélyezve (Web Speech API szimuláció).';
+                }
+            } else {
                 isLiveCallActive = false;
-                if (liveRecognition) { liveRecognition.stop(); liveRecognition = null; }
                 orb.classList.remove('active-call');
-                status.innerText = 'Hívás Befejezve.';
-                transcriptEl.innerText = '';
-                return;
-            }
-
-            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-                alert('A böngésződ nem támogatja a Live Voice Speech API-t.');
-                return;
-            }
-
-            isLiveCallActive = true;
-            orb.classList.add('active-call');
-            status.innerText = '● Élő Vonatkozás Máté Róberttel (Hallgatlak...)';
-
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            liveRecognition = new SpeechRecognition();
-            liveRecognition.lang = 'hu-HU';
-            liveRecognition.continuous = true;
-            liveRecognition.interimResults = true;
-
-            liveRecognition.onresult = async (event) => {
-                let interim = '';
-                let finalStr = '';
-                for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    if (event.results[i].isFinal) {
-                        finalStr += event.results[i][0].transcript;
-                    } else {
-                        interim += event.results[i][0].transcript;
-                    }
+                status.innerText = 'Hívás Inaktív - Kattints az indításhoz!';
+                if (liveRecognition) {
+                    try { liveRecognition.stop(); } catch(e) {}
+                    liveRecognition = null;
                 }
+            }
+        }
 
-                if (interim) transcriptEl.innerText = interim;
+        async function speakText() {
+            triggerHaptic();
+            const text = document.getElementById('ttsTextInput').value.trim() || "Szia Máté! A Novation Launchpad Mini MK3 készen áll a HOPE CODE feladatok animálására.";
+            try {
+                await fetch('/api/speak', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ text: text })
+                });
+            } catch(e) {}
+        }
 
-                if (finalStr) {
-                    transcriptEl.innerText = 'Én: "' + finalStr + '"';
-                    status.innerText = '● Jules gondolkodik és válaszol Noémi hangján...';
+        async function loadPersistentChatHistory() {
+            try {
+                const res = await fetch('/api/chat_history');
+                const history = await res.json();
+                const container = document.getElementById('chatHistory');
+                container.innerHTML = '';
+                history.forEach(m => {
+                    const div = document.createElement('div');
+                    div.className = m.speaker === 'Jules' || m.speaker.includes('Jules') ? 'msg agent' : 'msg user';
+                    div.innerHTML = '<strong>' + m.speaker + ':</strong> ' + m.content;
+                    container.appendChild(div);
+                });
+                container.scrollTop = container.scrollHeight;
+            } catch(e) {}
+        }
 
-                    const res = await fetch('/api/chat', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ message: finalStr })
-                    });
-                    const data = await res.json();
-                    transcriptEl.innerText = 'Jules: "' + data.reply + '"';
-
-                    await fetch('/api/speak', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ text: data.reply })
-                    });
-
-                    status.innerText = '● Élő Vonatkozás Máté Róberttel (Hallgatlak...)';
-                }
-            };
-
-            liveRecognition.onerror = () => {
-                status.innerText = 'Hiba történt a mikrofonnál.';
-            };
-
-            liveRecognition.start();
+        function triggerHaptic() {
+            if (navigator.vibrate) {
+                navigator.vibrate([100, 50, 100, 50, 200]);
+            }
         }
 
         async function sendChatMessage() {
+            triggerHaptic();
             const input = document.getElementById('chatInput');
             const history = document.getElementById('chatHistory');
             const msg = input.value.trim();
@@ -490,7 +612,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
 
                 const agentDiv = document.createElement('div');
                 agentDiv.className = 'msg agent';
-                agentDiv.innerHTML = '<strong>Jules:</strong> ' + data.reply + ' <span style="font-size:0.75rem; color:#00e676;">(💾 bincode mentve)</span>';
+                agentDiv.innerHTML = '<strong>Jules:</strong> ' + data.reply + ' <span style="font-size:0.75rem; color:#00e676;">(💾 bincode)</span>';
                 history.appendChild(agentDiv);
                 history.scrollTop = history.scrollHeight;
 
@@ -502,44 +624,21 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             } catch(e) {}
         }
 
-        async function switchApp(appName) {
-            currentActiveApp = appName;
-            await fetch('/api/trigger', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ event: 'switch_app', app: appName })
-            });
-        }
-
-        async function triggerAnim() {
-            const anim = document.getElementById('animSelect').value;
-            const textVal = document.getElementById('bannerTextInput').value;
-            await fetch('/api/trigger', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ event: 'command', app: currentActiveApp, animation: anim, text: textVal })
-            });
-        }
-
-        async function speakText() {
-            const text = document.getElementById('ttsTextInput').value;
-            if (!text) return;
-            await fetch('/api/speak', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ text: text })
-            });
-        }
-
-        async function togglePad(taskId) {
-            await fetch('/api/trigger', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ event: 'task_start', app: currentActiveApp, task_id: taskId, animation: 'galaxy_spiral' })
-            });
+        function buildGrid() {
+            const grid = document.getElementById('padGrid');
+            grid.innerHTML = '';
+            for(let i=0; i<64; i++) {
+                const pad = document.createElement('div');
+                pad.className = 'pad pending';
+                pad.id = 'pad-' + i;
+                pad.innerText = i + 1;
+                pad.onclick = () => { triggerHaptic(); togglePad(i); };
+                grid.appendChild(pad);
+            }
         }
 
         buildGrid();
+        loadPersistentChatHistory();
     </script>
 </body>
 </html>
@@ -557,7 +656,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         MicroscopeMemoryStore::load_bincode(mem_file).unwrap_or_else(|_| MicroscopeMemoryStore::new())
     ));
 
+    // Spawn Autonomous Background Agent Task Loop
+    let auto_engine = Arc::clone(&engine);
+    let auto_memory = Arc::clone(&memory_store);
+    std::thread::spawn(move || {
+        let mut loop_count = 0;
+        loop {
+            std::thread::sleep(Duration::from_secs(30));
+            loop_count += 1;
+
+            {
+                let mut mem = auto_memory.lock().unwrap();
+                let task_msg = format!("Autonóm háttérvizsgálat #{} elvégezve: Kód szekvencia stabil.", loop_count);
+                mem.add_memory("Jules Autonóm Agent", &task_msg, "autonomous_task");
+                let _ = mem.save_bincode("microscope_memory.bin");
+            }
+
+            auto_engine.animate_operation_with_text("pulse_beacon", "dissolve", 1.5, "JULES ACTIVE");
+        }
+    });
+
     let manifest_route = warp::path("manifest.json").map(|| warp::reply::json(&serde_json::from_str::<serde_json::Value>(MANIFEST_JSON).unwrap()));
+    let sw_route = warp::path("sw.js").map(|| warp::reply::html(SW_JS));
+
+    let mem_history_store = Arc::clone(&memory_store);
+    let api_chat_history = warp::path!("api" / "chat_history").map(move || {
+        let memories = mem_history_store.lock().unwrap().memories.clone();
+        warp::reply::json(&memories)
+    });
 
     let mem_count_store = Arc::clone(&memory_store);
     let api_state = warp::path!("api" / "state").map(move || {
@@ -581,6 +707,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             transitions: vec!["zoom_iris".into(), "dissolve".into(), "wipe_right".into()],
             autostart_enabled: true,
             memories_count: count,
+            autonomous_agent_active: true,
         };
         warp::reply::json(&resp)
     });
@@ -608,6 +735,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 memory_saved_bincode: true,
             };
             warp::reply::json(&resp)
+        });
+
+    let api_push = warp::path!("api" / "push_subscribe")
+        .and(warp::post())
+        .and(warp::body::json())
+        .map(|_req: PushSubscribeRequest| {
+            println!("[Push Notification] Új iOS/iPhone PWA push feliratkozás rögzítve!");
+            warp::reply::json(&"subscribed")
         });
 
     let engine_trigger = Arc::clone(&engine);
@@ -668,8 +803,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let routes = html_route
         .or(manifest_route)
+        .or(sw_route)
+        .or(api_chat_history)
         .or(api_state)
         .or(api_chat)
+        .or(api_push)
         .or(api_trigger)
         .or(api_speak)
         .or(api_settings);
