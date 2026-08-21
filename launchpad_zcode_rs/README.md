@@ -1,13 +1,18 @@
-# HOPE CODE Multi-App Novation Launchpad Mini MK3 Integration (Rust Edition) 🦀🎛️🗣️📱🚀
+# HOPE CODE Multi-App Launchpad Integration, Jules Agent & Live Voice-to-Voice 🦀🎛️🗣️🎙️🤖📱🚀
 
-High performance, low-latency **Rust background daemon**, **Mobile PWA Control Panel GUI with Web Speech Hungarian Voice Recognition & Edge-TTS Noémi Voice Reader**, **Top Launchpad Button Hardware View Switcher**, **Multi-App Switcher (HOPE CODE, Claude Code, OpenAI Codex)**, **Live CPU/RAM Meter & Pomodoro Timer**, **Scrolling Text Banner ("HOPE CODE" / "STOP!!")**, **Windows 11 System Tray App**, and CLI notifier connecting the **Novation Launchpad Mini MK3** controller with **HOPE CODE, Claude Code, and OpenAI Codex AI Coding Environments**.
+High performance, low-latency **Rust background daemon**, **Mobile PWA Control Panel GUI with Live Voice-to-Voice Call, Jules Agent Chat & Microscope Memory (`bincode` binary format)**, **Web Speech Hungarian Voice Recognition & Edge-TTS Noémi Voice Reader**, **Top Launchpad Button Hardware View Switcher**, **Multi-App Switcher (HOPE CODE, Claude Code, OpenAI Codex)**, **Live CPU/RAM Meter & Pomodoro Timer**, **Scrolling Text Banner ("HOPE CODE" / "STOP!!")**, **Windows 11 System Tray App**, and CLI notifier connecting the **Novation Launchpad Mini MK3** controller with **HOPE CODE, Claude Code, and OpenAI Codex AI Coding Environments**.
 
-Features **Mobile PWA Installation on Android/iOS/Windows**, **Web Speech API Hungarian Voice Commands**, **Top Launchpad Control Buttons for Direct Hardware Switching**, **Multi-App view switching with side LED indicators**, **Live CPU & RAM Performance Meter**, **Focus Pomodoro Clock Ring**, **Scrolling Text Banner on 8x8 LED matrix**, **Edge-TTS Noémi voice speech reading synchronized with real-time 8-bar audio spectrum visualizer**, **20 visual animations**, **4 transition effects**, **Interactive Virtual MIDI Grid**, **Windows Startup Config**, and an **AI Prompt Guide for generating custom animations**!
+Features **Live Voice-to-Voice Continuous Orb Call**, **Jules Agent Interactive Chat with Microscope Memory (`bincode` binary persistence)**, **Mobile PWA Installation on Android/iOS/Windows**, **Web Speech API Hungarian Voice Commands**, **Top Launchpad Control Buttons for Direct Hardware Switching**, **Multi-App view switching with side LED indicators**, **Live CPU & RAM Performance Meter**, **Focus Pomodoro Clock Ring**, **Scrolling Text Banner on 8x8 LED matrix**, **Edge-TTS Noémi voice speech reading synchronized with real-time 8-bar audio spectrum visualizer**, **20 visual animations**, **4 transition effects**, **Interactive Virtual MIDI Grid**, **Windows Startup Config**, and an **AI Prompt Guide for generating custom animations**!
 
 ---
 
 ## 🌟 Features
 
+- 🎙️ **Live Voice-to-Voice Continuous Orb Call**:
+  - Folyamatos élő hanghívás Jules-szal a PWA felületen! Beszélj magyarul, Jules élőben válaszol Noémi hangján, miközben a Launchpad gombmátrixán szinkronban fut a 8-bar audio spectrum equalizer.
+- 🤖 **Jules Agent Interactive Chat & Microscope Memory (`bincode` binary persistence)**:
+  - Közvetlen beszélgetés és feladatkiosztás Jules Agenttel a Control Panel PWA felületén.
+  - A közös emlékek, preferenciák és feladatelőzmények a **Microscope Memory** bináris `bincode` tárolójába (`microscope_memory.bin`) mentődnek.
 - 🎛️ **Top Control Buttons Hardware View Switcher (CC 91..96)**:
   - **Button 1 (CC 91)**: HOPE CODE / Zcode Matrix View
   - **Button 2 (CC 92)**: Claude Code Matrix View
@@ -32,7 +37,7 @@ Features **Mobile PWA Installation on Android/iOS/Windows**, **Web Speech API Hu
   - A felolvasás alatt élőben 8-bar audio spektrum equalizer jelenik meg a Launchpad Mini MK3 kijelzőjén és a virtuális MIDI felületen!
 - 🖥️ **Windows 11 System Tray App**:
   - Background tray icon (`zcode-launchpad-tray.exe`) for Windows 11 Home/Pro.
-- 🦀 **Rust Core Engine**: Built with `midir`, `warp`, and `tokio` for sub-millisecond response time.
+- 🦀 **Rust Core Engine**: Built with `midir`, `bincode`, `warp`, and `tokio` for sub-millisecond response time.
 
 ---
 
@@ -46,7 +51,7 @@ cd launchpad_zcode_rs
 ```
 
 This will produce standalone `.exe` files in `launchpad_zcode_rs/dist/ZcodeLaunchpad-Windows11/`:
-1. `zcode-launchpad-panel.exe` (Control Panel, Multi-App Dashboard, PWA, Virtual MIDI & Noémi TTS GUI)
+1. `zcode-launchpad-panel.exe` (Control Panel, Live Voice Call, Jules Chat, Microscope Memory, PWA, Virtual MIDI & Noémi TTS GUI)
 2. `zcode-launchpad-tray.exe` (Windows 11 System Tray Application with icon)
 3. `zcode-launchpad-daemon.exe` (Background UDP daemon)
 4. `zcode-launchpad-notify.exe` (CLI hook notification tool)
@@ -55,7 +60,10 @@ This will produce standalone `.exe` files in `launchpad_zcode_rs/dist/ZcodeLaunc
 
 ## 🚀 Usage
 
-### 1. Multi-App Switching via CLI or Top Buttons
+### 1. Live Voice-to-Voice Call & Microscope Memory (`http://127.0.0.1:8080`)
+Nyisd meg a PWA felületet és kattints az élő hanggömbre a folyamatos magyar élő beszélgetés indításához! Minden emlék bináris `bincode` formátumban mentődik a `microscope_memory.bin` fájlba.
+
+### 2. Multi-App Switching via CLI or Top Buttons
 ```bash
 # Switch active Launchpad view to Claude Code
 zcode-launchpad-notify switch_app --app claude_code
@@ -64,7 +72,7 @@ zcode-launchpad-notify switch_app --app claude_code
 zcode-launchpad-notify task_start --app codex --task-id 3 --anim matrix_rain
 ```
 
-### 2. Live CPU/RAM Meter & Scrolling Text
+### 3. Live CPU/RAM Meter & Scrolling Text
 ```bash
 # Display Live CPU & RAM Performance Meter on Launchpad
 zcode-launchpad-notify command --anim cpu_ram_meter
@@ -72,14 +80,6 @@ zcode-launchpad-notify command --anim cpu_ram_meter
 # Display Scrolling Text Banner
 zcode-launchpad-notify command --anim text_banner --text "HOPE CODE"
 ```
-
-### 3. Speak Text with Noémi Voice & Real-Time Launchpad EQ Sync
-```bash
-zcode-launchpad-speak "Szia! Ez a HOPE CODE AI válasza, amit most olvasok fel Noémi hangján."
-```
-
-### 4. Launch Mobile PWA & Voice Control
-Run `zcode-launchpad-panel.exe` and open `http://127.0.0.1:8080` in your browser or install as PWA on mobile.
 
 ---
 
