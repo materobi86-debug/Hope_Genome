@@ -1,0 +1,10 @@
+[package]
+name = "quorum-signal"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Quorum sensing: reach distributed consensus before acting, with quorum thresholds."
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }

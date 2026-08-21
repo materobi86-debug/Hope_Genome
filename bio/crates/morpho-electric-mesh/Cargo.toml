@@ -1,0 +1,9 @@
+[package]
+name = "morpho-electric-mesh"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Zero-orchestrator self-structuring mesh driven by voltage (resource) gradients."
+
+[dependencies]
+thiserror = { workspace = true }

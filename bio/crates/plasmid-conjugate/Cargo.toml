@@ -1,0 +1,12 @@
+[package]
+name = "plasmid-conjugate"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "P2P capability sharing without an omega-master: transfer functions, keys, filter matrices."
+
+[dependencies]
+blake3 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }

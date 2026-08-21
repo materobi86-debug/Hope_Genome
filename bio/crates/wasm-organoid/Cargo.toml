@@ -1,0 +1,12 @@
+[package]
+name = "wasm-organoid"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Wasm sandbox organoids: run incoming plasmid capabilities isolated in wasmi without endangering the host."
+
+[dependencies]
+bio-shared = { path = "../bio-shared" }
+plasmid-conjugate = { path = "../plasmid-conjugate" }
+wasmi = "0.31"
+thiserror = { workspace = true }

@@ -1,0 +1,11 @@
+[package]
+name = "epigenetic-switch"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Runtime methylation profile switching without touching the binary."
+
+[dependencies]
+bio-shared = { path = "../bio-shared" }
+serde = { workspace = true }
+thiserror = { workspace = true }

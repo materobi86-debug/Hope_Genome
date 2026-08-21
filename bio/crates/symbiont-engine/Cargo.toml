@@ -1,0 +1,12 @@
+[package]
+name = "symbiont-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Endosymbiotic offloading of matrix/FFT work to heterogeneous devices."
+
+[dependencies]
+blake3 = { workspace = true }
+bio-shared = { path = "../bio-shared" }
+serde = { workspace = true }
+thiserror = { workspace = true }

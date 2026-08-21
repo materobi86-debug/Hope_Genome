@@ -1,0 +1,11 @@
+[package]
+name = "phoenix-loop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Auto-Phoenix self-healing loop: watchdog detects rule violations, crispr-patch hot-swaps the faulty code branch."
+
+[dependencies]
+bio-shared = { path = "../bio-shared" }
+crispr-patch = { path = "../crispr-patch" }
+thiserror = { workspace = true }

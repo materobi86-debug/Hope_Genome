@@ -1,0 +1,10 @@
+[package]
+name = "mycorrhiza-trade"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Wood Wide Web: resourced redistribution between abundant and starved nodes."
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }

@@ -1,0 +1,9 @@
+[package]
+name = "magnetosome-nav"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Global node orientation along latency/bandwidth and geo-spread gradients."
+
+[dependencies]
+thiserror = { workspace = true }

@@ -1,0 +1,11 @@
+[package]
+name = "crispr-patch"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "CRISPR hot-patching: safe substrate for live code self-healing without restarts."
+
+[dependencies]
+bio-shared = { path = "../bio-shared" }
+serde = { workspace = true }
+thiserror = { workspace = true }

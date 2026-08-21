@@ -1,0 +1,10 @@
+[package]
+name = "apoptosis-cascade"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Graceful self-destruction: zeroize keys, notify scavengers, no trace left."
+
+[dependencies]
+zeroize = "1"
+thiserror = { workspace = true }

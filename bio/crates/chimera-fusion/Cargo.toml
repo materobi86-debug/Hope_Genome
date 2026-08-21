@@ -1,0 +1,9 @@
+[package]
+name = "chimera-fusion"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Hybrid multi-language fusion: Rust absorbs Python/C++/Wasm/eBPF into one process."
+
+[dependencies]
+thiserror = { workspace = true }

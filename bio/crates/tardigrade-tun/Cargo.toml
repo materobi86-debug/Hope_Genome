@@ -1,0 +1,17 @@
+[package]
+name = "tardigrade-tun"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Anhydrobiosis crash-proofing: freeze runtime state into a BLAKE3-sealed snapshot and revive it after OOM/SIGKILL/SIGTERM."
+
+[dependencies]
+bio-shared = { path = "../bio-shared" }
+blake3 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+ctrlc = "3"
+
+[dev-dependencies]
+tempfile = "3"
