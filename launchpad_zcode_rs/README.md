@@ -1,13 +1,16 @@
-# Zcode Novation Launchpad Mini MK3 Integration (Rust Edition) 🦀🎛️🚀
+# Zcode Novation Launchpad Mini MK3 Integration (Rust Edition) 🦀🎛️🗣️🚀
 
-High performance, low-latency **Rust background daemon**, **Control Panel GUI with Virtual MIDI Display**, **Windows 11 System Tray App**, and CLI notifier connecting the **Novation Launchpad Mini MK3** controller with the **Zcode AI Coding Environment**.
+High performance, low-latency **Rust background daemon**, **Control Panel GUI with Virtual MIDI Display & Edge-TTS Noémi Voice Reader**, **Windows 11 System Tray App**, and CLI notifier connecting the **Novation Launchpad Mini MK3** controller with the **Zcode AI Coding Environment**.
 
-Features **13 visual animations**, **4 transition effects**, **Interactive Virtual MIDI Grid**, **Windows Startup Config**, and an **AI Prompt Guide for generating custom animations**!
+Features **Edge-TTS Noémi voice speech reading synchronized with real-time 8-bar audio spectrum visualizer**, **13 visual animations**, **4 transition effects**, **Interactive Virtual MIDI Grid**, **Windows Startup Config**, and an **AI Prompt Guide for generating custom animations**!
 
 ---
 
 ## 🌟 Features
 
+- 🗣️ **Edge-TTS Noémi Voice Speech Reader & 8-Bar Audio Equalizer Sync** (`zcode-launchpad-speak`):
+  - Felolvassa a Zcode válaszokat mondatonként a magyar `hu-HU-NoemiNeural` Edge-TTS hangon.
+  - A felolvasás alatt élőben 8-bar audio spektrum equalizer jelenik meg a Launchpad Mini MK3 kijelzőjén és a virtuális MIDI felületen!
 - 📱 **Control Panel GUI & Virtual MIDI Display** (`zcode-launchpad-panel.exe`):
   - Interactive 8x8 virtual Launchpad matrix showing live status colors in real-time.
   - Live preview tab for testing all 13 animations and 4 transitions on screen and physical device.
@@ -19,6 +22,7 @@ Features **13 visual animations**, **4 transition effects**, **Interactive Virtu
   - 🟢 **Green (Bright)**: Successfully completed task
   - 🔴 **Red (Bright)**: Failed / Error task
 - ⚡ **13 Visual Animations**:
+  - `equalizer_bars`: 8-channel audio spectrum equalizer synced with TTS speech!
   - `spinner`: Rotating cyan spinner for AI thinking / code generation
   - `scan`: White scanning line for running commands / tests
   - `success_ripple`: Green expanding ripple on operation completion
@@ -28,7 +32,6 @@ Features **13 visual animations**, **4 transition effects**, **Interactive Virtu
   - `fireworks`: Random colorful bursting fireworks
   - `galaxy_spiral`: Rotating galaxy spiral pattern
   - `plasma_wave`: Dynamic sine plasma wave simulation
-  - `equalizer_bars`: 8-channel audio equalizer bars
   - `strobe_pulse`: Alternating strobe pulse effect
 - ✨ **4 Transition Effects**:
   - `dissolve`: Random pad dissolve transition
@@ -51,7 +54,7 @@ cd launchpad_zcode_rs
 ```
 
 This will produce standalone `.exe` files in `launchpad_zcode_rs/dist/ZcodeLaunchpad-Windows11/`:
-1. `zcode-launchpad-panel.exe` (Control Panel & Virtual MIDI GUI)
+1. `zcode-launchpad-panel.exe` (Control Panel, Virtual MIDI & Noémi TTS GUI)
 2. `zcode-launchpad-tray.exe` (Windows 11 System Tray Application with icon)
 3. `zcode-launchpad-daemon.exe` (Background UDP daemon)
 4. `zcode-launchpad-notify.exe` (CLI hook notification tool)
@@ -60,24 +63,16 @@ This will produce standalone `.exe` files in `launchpad_zcode_rs/dist/ZcodeLaunc
 
 ## 🚀 Usage
 
-### 1. Launch Control Panel & Virtual MIDI Display
+### 1. Speak Text with Noémi Voice & Real-Time Launchpad EQ Sync
+```bash
+zcode-launchpad-speak "Szia! Ez a Zcode AI válasza, amit most olvasok fel Noémi hangján."
+```
+
+### 2. Launch Control Panel & Virtual MIDI Display
 Run `zcode-launchpad-panel.exe` and open `http://127.0.0.1:8080` in your web browser.
 
-### 2. Run System Tray App on Windows 11
+### 3. Run System Tray App on Windows 11
 Double-click `zcode-launchpad-tray.exe`. It will sit in your Windows 11 Taskbar notification tray.
-
-### 3. Send Zcode Event Notifications
-From Zcode hooks / terminal:
-```bash
-# Galaxy spiral animation with iris transition on task start
-zcode-launchpad-notify task_start --task-id 0 --anim galaxy_spiral --trans zoom_iris
-
-# Plasma wave animation with curtain wipe transition
-zcode-launchpad-notify command --anim plasma_wave --trans wipe_right
-
-# Fireworks transition on success
-zcode-launchpad-notify task_success --task-id 0 --anim fireworks --trans dissolve
-```
 
 ---
 
@@ -86,4 +81,5 @@ zcode-launchpad-notify task_success --task-id 0 --anim fireworks --trans dissolv
 ```bash
 cd launchpad_zcode_rs
 cargo test
+python3 -m pytest
 ```

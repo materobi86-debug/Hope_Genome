@@ -5,6 +5,7 @@ LED lighting, and grid pad mapping.
 """
 
 import logging
+import threading
 from typing import Optional, List, Tuple, Dict
 import mido
 
@@ -40,6 +41,7 @@ class LaunchpadMiniMK3:
         self.outport = None
         self.connected = False
         self.buffer: Dict[int, int] = {}  # Index -> velocity color
+        self._lock = threading.Lock()
 
     def find_ports(self) -> Tuple[Optional[str], Optional[str]]:
         """Find MIDI input and output ports for Launchpad Mini MK3."""
@@ -144,15 +146,16 @@ class LaunchpadMiniMK3:
 
     def set_led(self, note_or_cc: int, color_velocity: int, is_cc: bool = False):
         """Set an individual pad or control LED color."""
-        self.buffer[note_or_cc] = color_velocity
-        if not self.connected or not self.outport:
-            return
+        with self._lock:
+            self.buffer[note_or_cc] = color_velocity
+            if not self.connected or not self.outport:
+                return
 
-        if is_cc:
-            msg = mido.Message('control_change', control=note_or_cc, value=color_velocity)
-        else:
-            msg = mido.Message('note_on', note=note_or_cc, velocity=color_velocity)
-        self.outport.send(msg)
+            if is_cc:
+                msg = mido.Message('control_change', control=note_or_cc, value=color_velocity)
+            else:
+                msg = mido.Message('note_on', note=note_or_cc, velocity=color_velocity)
+            self.outport.send(msg)
 
     def set_grid_pad(self, row: int, col: int, color_velocity: int):
         """Set an 8x8 grid pad LED color by row and column."""

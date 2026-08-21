@@ -24,6 +24,11 @@ struct TriggerRequest {
 }
 
 #[derive(Deserialize)]
+struct SpeakRequest {
+    text: String,
+}
+
+#[derive(Deserialize)]
 struct SettingsRequest {
     _autostart: bool,
 }
@@ -126,13 +131,18 @@ const HTML_INDEX: &str = r#"<!DOCTYPE html>
             margin-top: 15px;
             align-items: center;
         }
-        select, button, input {
+        select, button, input, textarea {
             padding: 8px 12px;
             background: #2a2a35;
             border: 1px solid var(--border);
             color: #fff;
             border-radius: 4px;
             font-size: 0.95rem;
+        }
+        textarea {
+            width: 100%;
+            height: 90px;
+            resize: vertical;
         }
         button.btn-action {
             background: var(--accent);
@@ -166,11 +176,13 @@ const HTML_INDEX: &str = r#"<!DOCTYPE html>
 
         <div class="tabs">
             <button class="tab-btn active" onclick="showTab('virtual-midi')">📱 Virtuális MIDI Kijelző</button>
+            <button class="tab-btn" onclick="showTab('tts-noemi')">🗣️ Beszélő Noémi & 8-Bar EQ</button>
             <button class="tab-btn" onclick="showTab('preview')">✨ Visualizációk Megtekintése</button>
             <button class="tab-btn" onclick="showTab('settings')">⚙️ Indulás & Beállítások</button>
             <button class="tab-btn" onclick="showTab('ai-generator')">🤖 Új Visual Készítése AI-val</button>
         </div>
 
+        <!-- 1. Virtuális MIDI Kijelző Tab -->
         <div id="virtual-midi" class="tab-content active">
             <div class="card">
                 <h3>Virtuális Launchpad 8x8 Mátrix Kijelző</h3>
@@ -180,12 +192,26 @@ const HTML_INDEX: &str = r#"<!DOCTYPE html>
             </div>
         </div>
 
+        <!-- 2. Beszélő Noémi & 8-Bar EQ Sync Tab -->
+        <div id="tts-noemi" class="tab-content">
+            <div class="card">
+                <h3>Edge-TTS Noémi Hangű Felolvasó & Real-Time 8-Bar EQ Sync</h3>
+                <p>Írd be a felolvasandó szöveget! A felolvasás alatt a Launchpadon élőben 8-bar audio equalizer animáció látható.</p>
+                <textarea id="ttsTextInput" placeholder="Írd ide a válasz szövegét, amit Noémi felolvas egymás utáni mondatokban..."></textarea>
+                <div class="controls-row">
+                    <button class="btn-action" onclick="speakText()">Felolvasás & Launchpad EQ Szinkron</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Visualizációk Megtekintése Tab -->
         <div id="preview" class="tab-content">
             <div class="card">
                 <h3>Visualizáció és Átmenet Tesztelése</h3>
                 <div class="controls-row">
                     <label>Effekt:</label>
                     <select id="animSelect">
+                        <option value="equalizer_bars">equalizer_bars (8-bar audio spectrum)</option>
                         <option value="galaxy_spiral">galaxy_spiral</option>
                         <option value="plasma_wave">plasma_wave</option>
                         <option value="matrix_rain">matrix_rain</option>
@@ -193,7 +219,6 @@ const HTML_INDEX: &str = r#"<!DOCTYPE html>
                         <option value="rainbow_wave">rainbow_wave</option>
                         <option value="snake">snake</option>
                         <option value="pulse_beacon">pulse_beacon</option>
-                        <option value="equalizer_bars">equalizer_bars</option>
                         <option value="strobe_pulse">strobe_pulse</option>
                         <option value="spinner">spinner</option>
                         <option value="scan">scan</option>
@@ -215,6 +240,7 @@ const HTML_INDEX: &str = r#"<!DOCTYPE html>
             </div>
         </div>
 
+        <!-- 4. Indulás & Beállítások Tab -->
         <div id="settings" class="tab-content">
             <div class="card">
                 <h3>Rendszer Beállítások</h3>
@@ -226,6 +252,7 @@ const HTML_INDEX: &str = r#"<!DOCTYPE html>
             </div>
         </div>
 
+        <!-- 5. Új Visual Készítése AI-val Tab -->
         <div id="ai-generator" class="tab-content">
             <div class="card">
                 <h3>Prompt Prompt-Útmutató Más AI Eszközökhöz (Claude / ChatGPT)</h3>
@@ -292,6 +319,16 @@ Kérlek, írj egy látványos [EFFEKT NEVE] effektet a fenti struktúrával!
             });
         }
 
+        async function speakText() {
+            const text = document.getElementById('ttsTextInput').value;
+            if (!text) return;
+            await fetch('/api/speak', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ text: text })
+            });
+        }
+
         async function togglePad(taskId) {
             await fetch('/api/trigger', {
                 method: 'POST',
@@ -331,7 +368,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let resp = StateResponse {
             tasks: tasks_map,
             animations: vec![
-                "galaxy_spiral".into(), "plasma_wave".into(), "matrix_rain".into(),
+                "equalizer_bars".into(), "galaxy_spiral".into(), "plasma_wave".into(), "matrix_rain".into(),
                 "fireworks".into(), "rainbow_wave".into(), "snake".into()
             ],
             transitions: vec!["zoom_iris".into(), "dissolve".into(), "wipe_right".into()],
@@ -345,7 +382,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .and(warp::post())
         .and(warp::body::json())
         .map(move |req: TriggerRequest| {
-            let anim = req.animation.as_deref().unwrap_or("galaxy_spiral");
+            let anim = req.animation.as_deref().unwrap_or("equalizer_bars");
             let trans = req.transition.as_deref().unwrap_or("zoom_iris");
             let task_id = req.task_id.unwrap_or(0);
 
@@ -354,6 +391,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             engine_trigger.animate_operation(anim, trans, 0.8);
             warp::reply::json(&"ok")
+        });
+
+    let engine_speak = Arc::clone(&engine);
+    let api_speak = warp::path!("api" / "speak")
+        .and(warp::post())
+        .and(warp::body::json())
+        .map(move |req: SpeakRequest| {
+            engine_speak.animate_operation("equalizer_bars", "dissolve", 2.0);
+            println!("[Control Panel TTS] Text received: \"{}\"", req.text);
+
+            let text_val = req.text.clone();
+            std::thread::spawn(move || {
+                let python_bin = if cfg!(windows) { "python" } else { "python3" };
+                let _ = std::process::Command::new(python_bin)
+                    .args(["-m", "launchpad_zcode.tts_sync", &text_val])
+                    .status();
+            });
+
+            warp::reply::json(&"speaking")
         });
 
     let api_settings = warp::path!("api" / "settings")
@@ -365,7 +421,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let html_route = warp::path::end().map(|| warp::reply::html(HTML_INDEX));
 
-    let routes = html_route.or(api_state).or(api_trigger).or(api_settings);
+    let routes = html_route
+        .or(api_state)
+        .or(api_trigger)
+        .or(api_speak)
+        .or(api_settings);
 
     let addr: SocketAddr = "127.0.0.1:8080".parse()?;
     warp::serve(routes).run(addr).await;
