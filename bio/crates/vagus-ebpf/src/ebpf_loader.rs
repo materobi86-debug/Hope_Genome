@@ -1,6 +1,5 @@
 //! Linux-only eBPF loader for the vagus nerve (aya).
-use crate::probes::{NerveSignal, SignalKind, VagusNerve};
-use aya::maps::RingBuf;
+use crate::probes::{NerveSignal, VagusNerve};
 use aya::programs::Program;
 use aya::Ebpf;
 use thiserror::Error;
@@ -19,16 +18,8 @@ pub enum EbpfError {
     NoRingBuf,
 }
 
-#[repr(C)]
-struct RawEvent {
-    kind: u8,
-    severity_milli: u32,
-    detail: [u8; 56],
-    detail_len: u8,
-}
-
 pub struct EbpfVagus {
-    ebpf: Ebpf,
+    _ebpf: Ebpf,
 }
 
 impl EbpfVagus {
@@ -39,12 +30,12 @@ impl EbpfVagus {
         })?;
         for (_name, program) in ebpf.programs_mut() {
             match program {
-                Program::KProbe(p) => { let _ = p.load(); },
-                Program::TracePoint(p) => { let _ = p.load(); },
+                Program::KProbe(ref mut p) => { let _ = p.load(); },
+                Program::TracePoint(ref mut p) => { let _ = p.load(); },
                 _ => {},
             }
         }
-        Ok(Self { ebpf })
+        Ok(Self { _ebpf: ebpf })
     }
 
     pub fn load_default() -> Result<Self, EbpfError> {

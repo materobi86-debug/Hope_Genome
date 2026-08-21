@@ -3,12 +3,17 @@
 //! Provides BLAKE3 integrity hashing, sealed frame encoding (used by
 //! `tardigrade-tun` snapshots and wire messages), and the BioMessage v2
 //! envelope shared by the network-facing modules (`physarum-path`,
-//! `tcell-sentinel`, `symbiont-engine`).
+//! `tcell-sentinel`, `symbiont-engine`). Also integrates Hope Genome AI
+//! safety and cryptographic proof framework.
+
+pub use _hope_core as hope_core;
 
 pub mod frame;
 pub mod hash;
+pub mod hope_integration;
 pub mod message;
 
 pub use frame::{FrameError, SealedFrame};
 pub use hash::{blake3_hex, verify_digest};
+pub use hope_integration::BioHopeGenome;
 pub use message::{BioMessage, MessageKind};

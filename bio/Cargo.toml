@@ -1,7 +1,9 @@
 [workspace]
 resolver = "2"
+exclude = [
+    "_biorepo"
+]
 members = [
-    "_biorepo",
     "crates/bio-shared",
     "crates/tardigrade-tun",
     "crates/physarum-path",
