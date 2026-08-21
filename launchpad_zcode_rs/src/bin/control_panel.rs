@@ -19,6 +19,8 @@ struct StateResponse {
     autostart_enabled: bool,
     memories_count: usize,
     autonomous_agent_active: bool,
+    daily_messages_used: usize,
+    daily_messages_limit: usize,
 }
 
 #[derive(Deserialize)]
@@ -48,6 +50,8 @@ struct ChatResponse {
     reply: String,
     speaker: String,
     memory_saved_bincode: bool,
+    daily_messages_used: usize,
+    daily_messages_limit: usize,
 }
 
 #[derive(Deserialize)]
@@ -101,16 +105,16 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
     <style>
         :root {
             --bg: #000000;
-            --card-bg: #0a0a0c;
-            --card-border: #1a1a24;
+            --card-bg: #050508;
+            --card-border: #14141f;
             --accent-green: #00e676;
             --accent-green-dim: #00a152;
             --accent-cyan: #00e5ff;
             --accent-cyan-dim: #00b0ff;
             --text-main: #f0f0f5;
-            --text-sub: #a0a0b0;
-            --user-bubble: #0f2b1d;
-            --agent-bubble: #14141f;
+            --text-sub: #888899;
+            --user-bubble: #0c2419;
+            --agent-bubble: #10101a;
         }
         * { box-sizing: border-box; }
         body {
@@ -145,10 +149,13 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
         .status-badge {
             font-size: 0.8rem;
             color: var(--accent-green);
-            background: #003319;
+            background: #002210;
             padding: 4px 10px;
             border-radius: 20px;
             border: 1px solid var(--accent-green-dim);
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
         .tabs {
             display: flex;
@@ -185,28 +192,47 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             margin-bottom: 12px;
         }
 
-        /* AMOLED Chat UI Styles */
+        /* Transparent Custom Scrollbar Styles */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 230, 118, 0.2);
+            border-radius: 10px;
+            transition: background 0.3s ease;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 230, 118, 0.6);
+            box-shadow: 0 0 8px #00e676;
+        }
+
+        /* AMOLED Chat UI Styles & Animations */
         .chat-container {
             display: flex;
             flex-direction: column;
-            height: 480px;
-            background: #030305;
+            height: 520px;
+            background: #000000;
             border: 1px solid var(--card-border);
             border-radius: 12px;
             overflow: hidden;
+            box-shadow: 0 0 25px rgba(0,230,118,0.05);
         }
         .chat-header-bar {
             padding: 10px 15px;
-            background: #08080c;
+            background: #050508;
             border-bottom: 1px solid var(--card-border);
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
         .chat-search-input {
-            width: 180px;
+            width: 170px;
             padding: 6px 10px;
-            background: #101015;
+            background: #0a0a0f;
             border: 1px solid var(--card-border);
             color: #fff;
             border-radius: 6px;
@@ -219,11 +245,17 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             display: flex;
             flex-direction: column;
             gap: 12px;
+            scroll-behavior: smooth;
         }
         .msg-row {
             display: flex;
             flex-direction: column;
             max-width: 85%;
+            animation: messageFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes messageFadeIn {
+            from { opacity: 0; transform: translateY(12px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
         }
         .msg-row.user { align-self: flex-end; }
         .msg-row.agent { align-self: flex-start; }
@@ -236,10 +268,10 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             gap: 10px;
         }
         .msg-bubble {
-            padding: 10px 14px;
+            padding: 11px 15px;
             border-radius: 12px;
             font-size: 0.95rem;
-            line-height: 1.45;
+            line-height: 1.48;
             word-break: break-word;
         }
         .msg-row.user .msg-bubble {
@@ -247,15 +279,62 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             color: #ffffff;
             border: 1px solid var(--accent-green-dim);
             border-bottom-right-radius: 2px;
-            box-shadow: 0 0 10px rgba(0,230,118,0.15);
+            box-shadow: 0 0 12px rgba(0,230,118,0.12);
         }
         .msg-row.agent .msg-bubble {
             background: var(--agent-bubble);
             color: #f0f0f5;
             border: 1px solid var(--accent-cyan-dim);
             border-bottom-left-radius: 2px;
-            box-shadow: 0 0 10px rgba(0,229,255,0.15);
+            box-shadow: 0 0 12px rgba(0,229,255,0.12);
         }
+
+        /* Animated Thinking Indicator */
+        .thinking-card {
+            display: none;
+            padding: 10px 14px;
+            background: #080c10;
+            border: 1px solid var(--accent-cyan-dim);
+            border-radius: 10px;
+            font-size: 0.85rem;
+            color: var(--accent-cyan);
+            margin: 6px 15px;
+            align-self: flex-start;
+            animation: thinkingPulse 1.5s infinite ease-in-out;
+        }
+        @keyframes thinkingPulse {
+            0% { border-color: rgba(0, 229, 255, 0.3); box-shadow: 0 0 5px rgba(0, 229, 255, 0.2); }
+            50% { border-color: rgba(0, 229, 255, 0.9); box-shadow: 0 0 18px rgba(0, 229, 255, 0.5); }
+            100% { border-color: rgba(0, 229, 255, 0.3); box-shadow: 0 0 5px rgba(0, 229, 255, 0.2); }
+        }
+        .thinking-dots span {
+            display: inline-block;
+            animation: dotWave 1.2s infinite ease-in-out;
+        }
+        .thinking-dots span:nth-child(1) { animation-delay: 0s; }
+        .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes dotWave {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-5px); color: #fff; }
+        }
+
+        /* Daily Limit Meter */
+        .limit-meter-bar {
+            width: 100%;
+            height: 6px;
+            background: #111118;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+        .limit-meter-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--accent-green), var(--accent-cyan));
+            transition: width 0.5s ease;
+        }
+
         .code-block {
             background: #000000;
             border: 1px solid #1a2a20;
@@ -283,7 +362,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
 
         .chat-input-bar {
             padding: 10px;
-            background: #08080c;
+            background: #050508;
             border-top: 1px solid var(--card-border);
             display: flex;
             flex-direction: column;
@@ -323,7 +402,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
         .live-voice-card {
             text-align: center;
             padding: 30px;
-            background: radial-gradient(circle at center, #001a0f 0%, #050508 80%);
+            background: radial-gradient(circle at center, #001a0f 0%, #000000 85%);
             border: 1px solid var(--accent-green-dim);
             border-radius: 12px;
         }
@@ -376,7 +455,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             width: 36px;
             height: 36px;
             border-radius: 50%;
-            background: #15151f;
+            background: #11111a;
             border: 1px solid var(--card-border);
             color: #fff;
             font-size: 0.7rem;
@@ -389,23 +468,23 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
         .side-btn.active-view { background: var(--accent-green); color: #000; box-shadow: 0 0 10px var(--accent-green); }
         .pad {
             aspect-ratio: 1;
-            background: #111;
+            background: #0a0a0d;
             border-radius: 6px;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 0.75rem;
             font-weight: bold;
-            color: #555;
+            color: #444;
             cursor: pointer;
         }
-        .pad.pending { background: #1a1a20; color: #777; }
+        .pad.pending { background: #121218; color: #666; }
         .pad.active { background: #ffd600; color: #000; box-shadow: 0 0 12px #ffd600; }
         .pad.success { background: #00e676; color: #000; box-shadow: 0 0 12px #00e676; }
         .pad.error { background: #ff1744; color: #fff; box-shadow: 0 0 12px #ff1744; }
 
         input[type="text"], textarea {
-            background: #09090d;
+            background: #08080c;
             border: 1px solid var(--card-border);
             color: #fff;
             padding: 8px 12px;
@@ -418,7 +497,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
     <div class="container">
         <header>
             <h1>⚡ HOPE CODE — AMOLED PWA Studio</h1>
-            <div class="status-badge">● Hope AI (Microscope Bincode)</div>
+            <div class="status-badge">● Jules & Hope AI (Microscope Bincode)</div>
         </header>
 
         <div class="tabs">
@@ -431,10 +510,20 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
 
         <!-- 1. AMOLED Chat & File Upload Tab -->
         <div id="hope-chat" class="tab-content active">
-            <div class="card">
+            <div class="card" style="padding:10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding:0 5px;">
+                    <div>
+                        <span style="font-size:0.85rem; font-weight:bold; color:var(--accent-green);">Jules / Hope Napi Kapacitás Limit:</span>
+                        <span id="limitText" style="font-size:0.85rem; color:#fff; font-weight:bold;">0 / 500 üzenet</span>
+                        <div class="limit-meter-bar" style="width:200px; display:inline-block; margin-left:10px; vertical-align:middle;">
+                            <div class="limit-meter-fill" id="limitMeterFill"></div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="chat-container">
                     <div class="chat-header-bar">
-                        <div style="font-weight:bold; color:var(--accent-green);">HOPE CODE / Zcode Chat (Beszélő: Hope)</div>
+                        <div style="font-weight:bold; color:var(--accent-green);">HOPE CODE / Zcode Studio</div>
                         <div style="display:flex; gap:8px;">
                             <input type="text" id="chatSearch" class="chat-search-input" placeholder="🔍 Keresés..." onkeyup="filterChat()">
                             <button class="btn" style="padding:4px 8px; font-size:0.75rem;" onclick="exportChatHistory('txt')">TXT</button>
@@ -443,6 +532,12 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
                     </div>
 
                     <div class="chat-history" id="chatHistory"></div>
+
+                    <!-- Thinking Step Animation Indicator -->
+                    <div class="thinking-card" id="thinkingIndicator">
+                        🧠 <span id="thinkingStepText">Jules / Hope gondolkodik...</span>
+                        <span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span>
+                    </div>
 
                     <div class="chat-input-bar">
                         <div class="attachment-preview" id="attachmentPreview">
@@ -453,7 +548,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
                             <input type="file" id="fileInput" style="display:none;" onchange="handleFileSelected(event)">
                             <button class="btn" onclick="document.getElementById('fileInput').click()" title="Fájl csatolása">📎</button>
                             <button class="btn" id="recordAudioBtn" onclick="toggleAudioRecording()" title="Hangüzenet rögzítése">🎤</button>
-                            <input type="text" id="chatInput" placeholder="Írj Hope-nak..." style="flex:1;" onkeypress="if(event.key==='Enter') sendChatMessage()">
+                            <input type="text" id="chatInput" placeholder="Írj Jules / Hope AI-nak..." style="flex:1;" onkeypress="if(event.key==='Enter') sendChatMessage()">
                             <button class="btn btn-green" onclick="sendChatMessage()">Küldés</button>
                         </div>
                     </div>
@@ -464,7 +559,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
         <!-- 2. Live Voice Call Tab -->
         <div id="live-voice" class="tab-content">
             <div class="card live-voice-card">
-                <h2>🎙️ Élő Voice-to-Voice Hívás Hope-pal</h2>
+                <h2>🎙️ Élő Voice-to-Voice Hívás Jules-szal / Hope-pal</h2>
                 <p style="color:var(--text-sub);">Folyamatos kétirányú párbeszéd magyar nyelven</p>
                 <button class="live-mic-orb" id="liveOrb" onclick="toggleLiveCall()">🎙️</button>
                 <h3 id="liveCallStatus" style="color: var(--accent-green); margin-top: 15px;">Hívás Inaktív - Kattints az indításhoz!</h3>
@@ -646,6 +741,9 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             triggerHaptic();
             const input = document.getElementById('chatInput');
             const history = document.getElementById('chatHistory');
+            const thinkingCard = document.getElementById('thinkingIndicator');
+            const thinkingStepText = document.getElementById('thinkingStepText');
+
             const msg = input.value.trim();
             if (!msg && !currentAttachment) return;
 
@@ -660,6 +758,22 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             clearAttachment();
             history.scrollTop = history.scrollHeight;
 
+            // Show Animated Thinking Steps
+            thinkingCard.style.display = 'block';
+            history.scrollTop = history.scrollHeight;
+
+            const steps = [
+                "Jules / Hope gondolkodik...",
+                "Kód szekvenciák elemzése...",
+                "Microscope Memory kontextus visszahívása...",
+                "Válasz megfogalmazása..."
+            ];
+            let stepIdx = 0;
+            const stepInterval = setInterval(() => {
+                stepIdx = (stepIdx + 1) % steps.length;
+                thinkingStepText.innerText = steps[stepIdx];
+            }, 500);
+
             try {
                 const res = await fetch('/api/chat', {
                     method: 'POST',
@@ -671,7 +785,11 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
                     })
                 });
                 const data = await res.json();
+                clearInterval(stepInterval);
+                thinkingCard.style.display = 'none';
                 playSoundEffect('receive');
+
+                updateLimitMeter(data.daily_messages_used, data.daily_messages_limit);
 
                 const agentRow = document.createElement('div');
                 agentRow.className = 'msg-row agent';
@@ -684,18 +802,31 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ text: data.reply })
                 });
-            } catch(e) {}
+            } catch(e) {
+                clearInterval(stepInterval);
+                thinkingCard.style.display = 'none';
+            }
+        }
+
+        function updateLimitMeter(used, limit) {
+            document.getElementById('limitText').innerText = used + ' / ' + limit + ' üzenet';
+            const pct = Math.min(100, Math.round((used / limit) * 100));
+            document.getElementById('limitMeterFill').style.width = pct + '%';
         }
 
         async function loadPersistentChatHistory() {
             try {
+                const resState = await fetch('/api/state');
+                const stateData = await resState.json();
+                updateLimitMeter(stateData.daily_messages_used, stateData.daily_messages_limit);
+
                 const res = await fetch('/api/chat_history');
                 const history = await res.json();
                 const container = document.getElementById('chatHistory');
                 container.innerHTML = '';
                 history.forEach(m => {
                     const row = document.createElement('div');
-                    row.className = m.speaker === 'Hope' || m.speaker === 'Jules' || m.speaker.includes('Hope') ? 'msg-row agent' : 'msg-row user';
+                    row.className = m.speaker === 'Hope' || m.speaker === 'Jules' || m.speaker.includes('Hope') || m.speaker.includes('Jules') ? 'msg-row agent' : 'msg-row user';
                     row.innerHTML = '<div class="msg-header"><span>' + m.speaker + '</span><span>' + m.category + '</span></div><div class="msg-bubble">' + formatMessageText(m.content) + '</div>';
                     container.appendChild(row);
                 });
@@ -846,7 +977,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             if (!isLiveCallActive) {
                 isLiveCallActive = true;
                 orb.classList.add('active-call');
-                status.innerText = '🎙️ Élő Hívás Aktív - Hope Hallgat...';
+                status.innerText = '🎙️ Élő Hívás Aktív - Jules / Hope Hallgat...';
                 triggerHaptic();
 
                 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -929,6 +1060,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         MicroscopeMemoryStore::load_bincode(mem_file).unwrap_or_else(|_| MicroscopeMemoryStore::new())
     ));
 
+    let daily_usage_counter = Arc::new(Mutex::new(0usize));
+    let daily_limit = 500usize;
+
     // Spawn Autonomous Background Agent Task Loop
     let auto_engine = Arc::clone(&engine);
     let auto_memory = Arc::clone(&memory_store);
@@ -941,11 +1075,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             {
                 let mut mem = auto_memory.lock().unwrap();
                 let task_msg = format!("Autonóm háttérvizsgálat #{} elvégezve: Kód szekvencia stabil.", loop_count);
-                mem.add_memory("Hope Autonóm Agent", &task_msg, "autonomous_task");
+                mem.add_memory("Jules Autonóm Agent", &task_msg, "autonomous_task");
                 let _ = mem.save_bincode("microscope_memory.bin");
             }
 
-            auto_engine.animate_operation_with_text("pulse_beacon", "dissolve", 1.5, "HOPE ACTIVE");
+            auto_engine.animate_operation_with_text("pulse_beacon", "dissolve", 1.5, "JULES ACTIVE");
         }
     });
 
@@ -959,11 +1093,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let mem_count_store = Arc::clone(&memory_store);
+    let usage_state_store = Arc::clone(&daily_usage_counter);
     let api_state = warp::path!("api" / "state").map(move || {
         let mut tasks_map = HashMap::new();
         tasks_map.insert(0, "pending".to_string());
 
         let count = mem_count_store.lock().unwrap().memories.len();
+        let used = *usage_state_store.lock().unwrap();
 
         let mut apps_map = HashMap::new();
         apps_map.insert("hopecode".to_string(), "running".to_string());
@@ -981,12 +1117,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             autostart_enabled: true,
             memories_count: count,
             autonomous_agent_active: true,
+            daily_messages_used: used,
+            daily_messages_limit: daily_limit,
         };
         warp::reply::json(&resp)
     });
 
     let mem_chat_store = Arc::clone(&memory_store);
     let engine_chat = Arc::clone(&engine);
+    let usage_chat_store = Arc::clone(&daily_usage_counter);
     let api_chat = warp::path!("api" / "chat")
         .and(warp::post())
         .and(warp::body::json())
@@ -998,12 +1137,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "".to_string()
             };
 
-            let reply = format!("Vettem a feladatot, Máté Róbert! Megkezdtem a HOPE CODE feldolgozást: \"{}\"{}.", user_msg, file_info);
+            let reply = format!("Vettem a feladatot, Máté Róbert! Megkezdtem a HOPE CODE / Zcode feldolgozást: \"{}\"{}.", user_msg, file_info);
+
+            let used = {
+                let mut u = usage_chat_store.lock().unwrap();
+                *u += 1;
+                *u
+            };
 
             {
                 let mut mem = mem_chat_store.lock().unwrap();
                 mem.add_memory("Máté Róbert", &format!("{}{}", user_msg, file_info), "user_prompt");
-                mem.add_memory("Hope", &reply, "agent_response");
+                mem.add_memory("Jules / Hope", &reply, "agent_response");
                 let _ = mem.save_bincode("microscope_memory.bin");
             }
 
@@ -1011,8 +1156,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let resp = ChatResponse {
                 reply,
-                speaker: "Hope".to_string(),
+                speaker: "Jules / Hope".to_string(),
                 memory_saved_bincode: true,
+                daily_messages_used: used,
+                daily_messages_limit: daily_limit,
             };
             warp::reply::json(&resp)
         });
@@ -1027,7 +1174,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             {
                 let mut mem = mem_upload_store.lock().unwrap();
                 mem.add_memory("Máté Róbert", &format!("[Fájl Feltöltve]: {}", req.file_name), "file_upload");
-                mem.add_memory("Hope", &reply, "agent_response");
+                mem.add_memory("Jules / Hope", &reply, "agent_response");
                 let _ = mem.save_bincode("microscope_memory.bin");
             }
 
