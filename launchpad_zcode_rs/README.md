@@ -1,13 +1,18 @@
 # Zcode Novation Launchpad Mini MK3 Integration (Rust Edition) 🦀🎛️🚀
 
-High performance, low-latency **Rust background daemon**, **Windows 11 System Tray App**, and CLI notifier connecting the **Novation Launchpad Mini MK3** controller with the **Zcode AI Coding Environment**.
+High performance, low-latency **Rust background daemon**, **Control Panel GUI with Virtual MIDI Display**, **Windows 11 System Tray App**, and CLI notifier connecting the **Novation Launchpad Mini MK3** controller with the **Zcode AI Coding Environment**.
 
-Features **13 visual animations**, **4 transition effects**, and **Windows 11 System Tray executable integration**!
+Features **13 visual animations**, **4 transition effects**, **Interactive Virtual MIDI Grid**, **Windows Startup Config**, and an **AI Prompt Guide for generating custom animations**!
 
 ---
 
 ## 🌟 Features
 
+- 📱 **Control Panel GUI & Virtual MIDI Display** (`zcode-launchpad-panel.exe`):
+  - Interactive 8x8 virtual Launchpad matrix showing live status colors in real-time.
+  - Live preview tab for testing all 13 animations and 4 transitions on screen and physical device.
+  - Windows 11 startup / system autostart configuration settings.
+  - Prompt guide template for creating new custom visual animations using external AI tools (Claude / ChatGPT).
 - 🟢 **8x8 Main Task Grid Visualizer**:
   - ⚪ **Grey (Dim)**: Pending task
   - 🟡 **Yellow (Pulsing)**: Active / Thinking task
@@ -32,7 +37,7 @@ Features **13 visual animations**, **4 transition effects**, and **Windows 11 Sy
   - `zoom_iris`: Circular expanding/contracting iris transition
 - 🖥️ **Windows 11 System Tray App**:
   - Background tray icon (`zcode-launchpad-tray.exe`) for Windows 11 Home/Pro.
-- 🦀 **Rust Core Engine**: Built with `midir` and `tokio` for sub-millisecond response time.
+- 🦀 **Rust Core Engine**: Built with `midir`, `warp`, and `tokio` for sub-millisecond response time.
 
 ---
 
@@ -46,18 +51,22 @@ cd launchpad_zcode_rs
 ```
 
 This will produce standalone `.exe` files in `launchpad_zcode_rs/dist/ZcodeLaunchpad-Windows11/`:
-1. `zcode-launchpad-tray.exe` (Windows 11 System Tray Application with icon)
-2. `zcode-launchpad-daemon.exe` (Background UDP daemon)
-3. `zcode-launchpad-notify.exe` (CLI hook notification tool)
+1. `zcode-launchpad-panel.exe` (Control Panel & Virtual MIDI GUI)
+2. `zcode-launchpad-tray.exe` (Windows 11 System Tray Application with icon)
+3. `zcode-launchpad-daemon.exe` (Background UDP daemon)
+4. `zcode-launchpad-notify.exe` (CLI hook notification tool)
 
 ---
 
 ## 🚀 Usage
 
-### 1. Run System Tray App on Windows 11
+### 1. Launch Control Panel & Virtual MIDI Display
+Run `zcode-launchpad-panel.exe` and open `http://127.0.0.1:8080` in your web browser.
+
+### 2. Run System Tray App on Windows 11
 Double-click `zcode-launchpad-tray.exe`. It will sit in your Windows 11 Taskbar notification tray.
 
-### 2. Send Zcode Event Notifications
+### 3. Send Zcode Event Notifications
 From Zcode hooks / terminal:
 ```bash
 # Galaxy spiral animation with iris transition on task start

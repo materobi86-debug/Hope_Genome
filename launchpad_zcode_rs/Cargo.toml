@@ -12,6 +12,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 rand = "0.8"
 clap = { version = "4.4", features = ["derive"] }
+warp = "0.3"
 
 [target.'cfg(windows)'.dependencies]
 tray-item = "0.10"
@@ -30,3 +31,7 @@ path = "src/bin/notify.rs"
 [[bin]]
 name = "zcode-launchpad-tray"
 path = "src/bin/tray.rs"
+
+[[bin]]
+name = "zcode-launchpad-panel"
+path = "src/bin/control_panel.rs"
