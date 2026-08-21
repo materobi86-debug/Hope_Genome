@@ -497,7 +497,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
     <div class="container">
         <header>
             <h1>⚡ HOPE CODE — AMOLED PWA Studio</h1>
-            <div class="status-badge">● Jules & Hope AI (Microscope Bincode)</div>
+            <div class="status-badge">🌐 Tailscale & Local Wi-Fi Hálózat Aktív</div>
         </header>
 
         <div class="tabs">
@@ -560,7 +560,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
         <div id="live-voice" class="tab-content">
             <div class="card live-voice-card">
                 <h2>🎙️ Élő Voice-to-Voice Hívás Jules-szal / Hope-pal</h2>
-                <p style="color:var(--text-sub);">Folyamatos kétirányú párbeszéd magyar nyelven</p>
+                <p style="color:var(--text-sub);">Folyamatos kétirányú párbeszéd magyar nyelven (Tailscale / Wi-Fi eléréssel)</p>
                 <button class="live-mic-orb" id="liveOrb" onclick="toggleLiveCall()">🎙️</button>
                 <h3 id="liveCallStatus" style="color: var(--accent-green); margin-top: 15px;">Hívás Inaktív - Kattints az indításhoz!</h3>
                 <p id="liveTranscript" style="font-size: 1.1rem; color: #fff; min-height: 30px; font-weight: bold;"></p>
@@ -1050,7 +1050,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("[Control Panel] Starting HOPE CODE Multi-App PWA Web Control Panel on http://127.0.0.1:8080...");
+    println!("[Control Panel] Starting HOPE CODE Multi-App PWA Web Control Panel on http://0.0.0.0:8080 (Tailscale & Local Network accessible)...");
 
     let lp = LaunchpadMiniMK3::new(true);
     let engine = Arc::new(LaunchpadEngine::new(lp));
@@ -1264,7 +1264,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or(api_speak)
         .or(api_settings);
 
-    let addr: SocketAddr = "127.0.0.1:8080".parse()?;
+    let addr: SocketAddr = "0.0.0.0:8080".parse()?;
     warp::serve(routes).run(addr).await;
 
     Ok(())
