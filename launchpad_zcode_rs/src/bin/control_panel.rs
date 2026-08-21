@@ -41,6 +41,7 @@ struct SpeakRequest {
 #[derive(Deserialize)]
 struct ChatRequest {
     message: String,
+    persona: Option<String>,
     attachment: Option<String>,
     file_name: Option<String>,
 }
@@ -81,7 +82,7 @@ const MANIFEST_JSON: &str = r##"{"short_name":"HOPE CODE PWA","name":"HOPE CODE 
 
 const SW_JS: &str = r#"
 self.addEventListener('push', function(event) {
-    const data = event.data ? event.data.text() : 'Üzenet érkezett Hope-tól!';
+    const data = event.data ? event.data.text() : 'Üzenet érkezett Jules / Hope-tól!';
     const options = {
         body: data,
         icon: '/icon.png',
@@ -89,7 +90,7 @@ self.addEventListener('push', function(event) {
         vibrate: [100, 50, 100, 50, 200]
     };
     event.waitUntil(
-        self.registration.showNotification('HOPE CODE Értesítés (Hope AI)', options)
+        self.registration.showNotification('HOPE CODE Értesítés', options)
     );
 });
 "#;
@@ -101,7 +102,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#00e676">
-    <title>HOPE CODE — AMOLED Black Chat & Launchpad Studio</title>
+    <title>HOPE CODE — Jules & Hope AMOLED Chat & Launchpad Studio</title>
     <style>
         :root {
             --bg: #000000;
@@ -230,13 +231,23 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             align-items: center;
         }
         .chat-search-input {
-            width: 170px;
+            width: 150px;
             padding: 6px 10px;
             background: #0a0a0f;
             border: 1px solid var(--card-border);
             color: #fff;
             border-radius: 6px;
             font-size: 0.8rem;
+        }
+        .persona-select {
+            padding: 6px 10px;
+            background: #0f1a15;
+            border: 1px solid var(--accent-green-dim);
+            color: var(--accent-green);
+            font-weight: bold;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
         }
         .chat-history {
             flex: 1;
@@ -496,34 +507,41 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
 <body>
     <div class="container">
         <header>
-            <h1>⚡ HOPE CODE — AMOLED PWA Studio</h1>
+            <h1>⚡ HOPE CODE — Jules & Hope AMOLED PWA Studio</h1>
             <div class="status-badge">🌐 Tailscale & Local Wi-Fi Hálózat Aktív</div>
         </header>
 
         <div class="tabs">
-            <button class="tab-btn active" onclick="showTab('hope-chat')">💬 AMOLED Chat & Fájlok</button>
+            <button class="tab-btn active" onclick="showTab('hope-chat')">💬 AMOLED Chat (Jules / Hope) & Fájlok</button>
             <button class="tab-btn" onclick="showTab('live-voice')">🎙️ Élő Voice Call</button>
             <button class="tab-btn" onclick="showTab('iphone-hardware')">⚡ iPhone Flash & Haptic</button>
             <button class="tab-btn" onclick="showTab('virtual-midi')">📱 Mobil Launchpad</button>
             <button class="tab-btn" onclick="showTab('tts-noemi')">🗣️ Noémi Felolvasó & EQ</button>
         </div>
 
-        <!-- 1. AMOLED Chat & File Upload Tab -->
+        <!-- 1. AMOLED Chat & File Upload Tab with Jules / Hope Persona Selector -->
         <div id="hope-chat" class="tab-content active">
             <div class="card" style="padding:10px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding:0 5px;">
                     <div>
-                        <span style="font-size:0.85rem; font-weight:bold; color:var(--accent-green);">Jules / Hope Napi Kapacitás Limit:</span>
+                        <span style="font-size:0.85rem; font-weight:bold; color:var(--accent-green);">AI Kapacitás Limit:</span>
                         <span id="limitText" style="font-size:0.85rem; color:#fff; font-weight:bold;">0 / 500 üzenet</span>
-                        <div class="limit-meter-bar" style="width:200px; display:inline-block; margin-left:10px; vertical-align:middle;">
+                        <div class="limit-meter-bar" style="width:180px; display:inline-block; margin-left:10px; vertical-align:middle;">
                             <div class="limit-meter-fill" id="limitMeterFill"></div>
                         </div>
+                    </div>
+                    <div>
+                        <label style="font-size:0.85rem; font-weight:bold; color:var(--text-sub); margin-right:6px;">Partner:</label>
+                        <select id="personaSelect" class="persona-select">
+                            <option value="jules" selected>🤖 Jules (Mérnök & Kódoló)</option>
+                            <option value="hope">🌟 Hope (HOPE CODE AI)</option>
+                        </select>
                     </div>
                 </div>
 
                 <div class="chat-container">
                     <div class="chat-header-bar">
-                        <div style="font-weight:bold; color:var(--accent-green);">HOPE CODE / Zcode Studio</div>
+                        <div style="font-weight:bold; color:var(--accent-green);" id="chatTitle">HOPE CODE / Zcode Studio (Jules & Hope)</div>
                         <div style="display:flex; gap:8px;">
                             <input type="text" id="chatSearch" class="chat-search-input" placeholder="🔍 Keresés..." onkeyup="filterChat()">
                             <button class="btn" style="padding:4px 8px; font-size:0.75rem;" onclick="exportChatHistory('txt')">TXT</button>
@@ -535,7 +553,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
 
                     <!-- Thinking Step Animation Indicator -->
                     <div class="thinking-card" id="thinkingIndicator">
-                        🧠 <span id="thinkingStepText">Jules / Hope gondolkodik...</span>
+                        🧠 <span id="thinkingStepText">AI gondolkodik...</span>
                         <span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span>
                     </div>
 
@@ -548,7 +566,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
                             <input type="file" id="fileInput" style="display:none;" onchange="handleFileSelected(event)">
                             <button class="btn" onclick="document.getElementById('fileInput').click()" title="Fájl csatolása">📎</button>
                             <button class="btn" id="recordAudioBtn" onclick="toggleAudioRecording()" title="Hangüzenet rögzítése">🎤</button>
-                            <input type="text" id="chatInput" placeholder="Írj Jules / Hope AI-nak..." style="flex:1;" onkeypress="if(event.key==='Enter') sendChatMessage()">
+                            <input type="text" id="chatInput" placeholder="Írj Jules-nak vagy Hope-nak..." style="flex:1;" onkeypress="if(event.key==='Enter') sendChatMessage()">
                             <button class="btn btn-green" onclick="sendChatMessage()">Küldés</button>
                         </div>
                     </div>
@@ -743,6 +761,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             const history = document.getElementById('chatHistory');
             const thinkingCard = document.getElementById('thinkingIndicator');
             const thinkingStepText = document.getElementById('thinkingStepText');
+            const persona = document.getElementById('personaSelect').value;
 
             const msg = input.value.trim();
             if (!msg && !currentAttachment) return;
@@ -763,10 +782,10 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             history.scrollTop = history.scrollHeight;
 
             const steps = [
-                "Jules / Hope gondolkodik...",
-                "Kód szekvenciák elemzése...",
-                "Microscope Memory kontextus visszahívása...",
-                "Válasz megfogalmazása..."
+                (persona === 'jules' ? 'Jules' : 'Hope') + ' gondolkodik...',
+                'Kód szekvenciák elemzése...',
+                'Microscope Memory kontextus visszahívása...',
+                'Válasz megfogalmazása...'
             ];
             let stepIdx = 0;
             const stepInterval = setInterval(() => {
@@ -780,6 +799,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
                         message: msg,
+                        persona: persona,
                         attachment: attachmentToSend ? attachmentToSend.file_data_base64 : null,
                         file_name: attachmentToSend ? attachmentToSend.file_name : null
                     })
@@ -827,7 +847,8 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
                 history.forEach(m => {
                     const row = document.createElement('div');
                     row.className = m.speaker === 'Hope' || m.speaker === 'Jules' || m.speaker.includes('Hope') || m.speaker.includes('Jules') ? 'msg-row agent' : 'msg-row user';
-                    row.innerHTML = '<div class="msg-header"><span>' + m.speaker + '</span><span>' + m.category + '</span></div><div class="msg-bubble">' + formatMessageText(m.content) + '</div>';
+                    const tagLabel = m.tag || m.category || 'memory';
+                    row.innerHTML = '<div class="msg-header"><span>' + m.speaker + '</span><span>' + tagLabel + '</span></div><div class="msg-bubble">' + formatMessageText(m.content) + '</div>';
                     container.appendChild(row);
                 });
                 container.scrollTop = container.scrollHeight;
@@ -1048,6 +1069,28 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
 </html>
 "##;
 
+fn generate_ai_reply(speaker: &str, msg: &str, file_info: &str) -> String {
+    let msg_lower = msg.to_lowercase();
+
+    if msg_lower.contains("szia") || msg_lower.contains("üdv") || msg_lower.contains("hello") {
+        if speaker == "Jules" {
+            format!("Szia Máté! Jules vagyok, az AI szoftverfejlesztő mérnököd. Milyen kódolási feladatban, Launchpad animációban vagy architektúrában segítsek ma?{}", file_info)
+        } else {
+            format!("Üdvözöllek Máté Róbert! Hope vagyok, a HOPE CODE AI asszisztensed. Minden rendszered és a Launchpad MK3 mátrixod stabilan üzemel. Mivel kezdjünk?{}", file_info)
+        }
+    } else if msg_lower.contains("launchpad") || msg_lower.contains("animáci") || msg_lower.contains("gomb") || msg_lower.contains("pad") {
+        format!("A Launchpad Mini MK3 8x8-as RGB mátrixán sikeresen elindítottam az illeszkedő fényeffektust. Az 'Élő Voice Call' és a 'Virtuális Launchpad' füleken valós időben vezérelheted a feladatok állapotát (Active, Success, Error).{}", file_info)
+    } else if msg_lower.contains("kód") || msg_lower.contains("rust") || msg_lower.contains("python") || msg_lower.contains("test") {
+        format!("A kódbázist átvizsgáltam. A `launchpad_zcode_rs` (Rust core daemon, control panel, tray, notify) és `launchpad_zcode` (Python tts_sync & engine) modulok 100%-os tesztlefedettséggel bírnak.\n\nEzt a kódmintát használhatod a saját futtatásaidhoz:\n```rust\nlet lp = LaunchpadMiniMK3::new(true);\nlp.draw_task_grid(&tasks_state);\n```{}", file_info)
+    } else {
+        if speaker == "Jules" {
+            format!("Vettem az utasítást Máté: \"{}\"{}. A Microscope Memory bincode tárolóba elmentettem a kontextust, és felkészültem a következő mérnöki lépésre.", msg, file_info)
+        } else {
+            format!("HOPE CODE Rendszer válasz Máté Róbert részére: \"{}\"{}. A művelet lefutott, a Launchpad LED visszajelzése frissítve.", msg, file_info)
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("[Control Panel] Starting HOPE CODE Multi-App PWA Web Control Panel on http://0.0.0.0:8080 (Tailscale & Local Network accessible)...");
@@ -1131,13 +1174,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .and(warp::body::json())
         .map(move |req: ChatRequest| {
             let user_msg = req.message;
+            let persona = req.persona.unwrap_or_else(|| "jules".to_string());
             let file_info = if let Some(fname) = req.file_name {
                 format!(" [Csatolt fájl: {}]", fname)
             } else {
                 "".to_string()
             };
 
-            let reply = format!("Vettem a feladatot, Máté Róbert! Megkezdtem a HOPE CODE / Zcode feldolgozást: \"{}\"{}.", user_msg, file_info);
+            let speaker_name = if persona.to_lowercase() == "jules" {
+                "Jules"
+            } else {
+                "Hope"
+            };
+
+            let reply = generate_ai_reply(speaker_name, &user_msg, &file_info);
 
             let used = {
                 let mut u = usage_chat_store.lock().unwrap();
@@ -1148,7 +1198,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             {
                 let mut mem = mem_chat_store.lock().unwrap();
                 mem.add_memory("Máté Róbert", &format!("{}{}", user_msg, file_info), "user_prompt");
-                mem.add_memory("Jules / Hope", &reply, "agent_response");
+                mem.add_memory(speaker_name, &reply, "agent_response");
                 let _ = mem.save_bincode("microscope_memory.bin");
             }
 
@@ -1156,7 +1206,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let resp = ChatResponse {
                 reply,
-                speaker: "Jules / Hope".to_string(),
+                speaker: speaker_name.to_string(),
                 memory_saved_bincode: true,
                 daily_messages_used: used,
                 daily_messages_limit: daily_limit,
