@@ -1,0 +1,10 @@
+[package]
+name = "blastema-regen"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Self-healing binary repair from BLAKE3 parity: rebuild damaged modules in place."
+
+[dependencies]
+blake3 = { workspace = true }
+thiserror = { workspace = true }

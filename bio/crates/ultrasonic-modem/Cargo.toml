@@ -1,0 +1,10 @@
+[package]
+name = "ultrasonic-modem"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Ultrasonic air-gap modem: BFSK BioMessage transfer over 18-22 kHz speaker/microphone between isolated machines."
+
+[dependencies]
+bio-shared = { path = "../bio-shared" }
+thiserror = { workspace = true }

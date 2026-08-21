@@ -1,0 +1,10 @@
+[package]
+name = "mycelial-void-vault"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Hidden storage: hide secrets in audio noise, timestamp jitter, RAM refresh fluctuations."
+
+[dependencies]
+rand = { workspace = true }
+thiserror = { workspace = true }

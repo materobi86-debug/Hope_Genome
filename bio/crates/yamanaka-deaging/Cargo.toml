@@ -1,0 +1,10 @@
+[package]
+name = "yamanaka-deaging"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Zero-downtime state reversion: rejuvenate a fragmented process memory back to its pristine stem-cell baseline."
+
+[dependencies]
+bio-shared = { path = "../bio-shared" }
+thiserror = { workspace = true }

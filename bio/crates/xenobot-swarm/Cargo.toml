@@ -1,0 +1,9 @@
+[package]
+name = "xenobot-swarm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Distributed garbage & log sweeper swarm for filesystem and memory debris."
+
+[dependencies]
+thiserror = { workspace = true }

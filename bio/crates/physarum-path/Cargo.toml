@@ -1,0 +1,12 @@
+[package]
+name = "physarum-path"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Slime-mold style brainless route optimization for UDP mesh networks."
+
+[dependencies]
+bio-shared = { path = "../bio-shared" }
+serde = { workspace = true }
+thiserror = { workspace = true }
+rand = { workspace = true }

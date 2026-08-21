@@ -1,0 +1,10 @@
+[package]
+name = "chameleon-stealth"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Traffic camouflage: morph BioMessage packets into benign HTTPS/DNS/NTP shapes."
+
+[dependencies]
+rand = { workspace = true }
+thiserror = { workspace = true }

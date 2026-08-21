@@ -1,0 +1,49 @@
+[workspace]
+resolver = "2"
+members = [
+    "_biorepo",
+    "crates/bio-shared",
+    "crates/tardigrade-tun",
+    "crates/physarum-path",
+    "crates/tcell-sentinel",
+    "crates/crispr-patch",
+    "crates/symbiont-engine",
+    "crates/epigenetic-switch",
+    "crates/quorum-signal",
+    "crates/mycorrhiza-trade",
+    "crates/plasmid-conjugate",
+    "crates/blastema-regen",
+    "crates/chameleon-stealth",
+    "crates/electrocyte-burst",
+    "crates/magnetosome-nav",
+    "crates/xenobot-swarm",
+    "crates/apoptosis-cascade",
+    "crates/yamanaka-deaging",
+    "crates/morpho-electric-mesh",
+    "crates/biophoton-telepathy",
+    "crates/transposon-hive",
+    "crates/mycelial-void-vault",
+    "crates/chimera-fusion",
+    "crates/bio-bridge",
+    "crates/ratatui-organism",
+    "crates/vagus-ebpf",
+    "crates/ultrasonic-modem",
+    "crates/wasm-organoid",
+    "crates/phoenix-loop",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+blake3 = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+rand = "0.8"
+
+[profile.release]
+lto = true
+strip = true

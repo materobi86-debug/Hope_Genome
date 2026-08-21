@@ -1,0 +1,19 @@
+[package]
+name = "ratatui-organism"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Living Ratatui organism matrix: real-time TUI dashboard of the whole bio ecosystem."
+
+[dependencies]
+bio-bridge = { path = "../bio-bridge" }
+ratatui = "0.30"
+crossterm = "0.29"
+
+[lib]
+name = "ratatui_organism"
+path = "src/lib.rs"
+
+[[bin]]
+name = "organism-tui"
+path = "src/main.rs"

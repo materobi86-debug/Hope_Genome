@@ -1,0 +1,32 @@
+[package]
+name = "bio-bridge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Bridges the 21 bio-module crates to the Bio-Binaries v2 BioMessage protocol (vendored, dependency-light)."
+
+[dependencies]
+blake3 = { workspace = true }
+bio-shared = { path = "../bio-shared" }
+tardigrade-tun = { path = "../tardigrade-tun" }
+physarum-path = { path = "../physarum-path" }
+tcell-sentinel = { path = "../tcell-sentinel" }
+crispr-patch = { path = "../crispr-patch" }
+symbiont-engine = { path = "../symbiont-engine" }
+epigenetic-switch = { path = "../epigenetic-switch" }
+quorum-signal = { path = "../quorum-signal" }
+mycorrhiza-trade = { path = "../mycorrhiza-trade" }
+plasmid-conjugate = { path = "../plasmid-conjugate" }
+blastema-regen = { path = "../blastema-regen" }
+chameleon-stealth = { path = "../chameleon-stealth" }
+electrocyte-burst = { path = "../electrocyte-burst" }
+magnetosome-nav = { path = "../magnetosome-nav" }
+xenobot-swarm = { path = "../xenobot-swarm" }
+apoptosis-cascade = { path = "../apoptosis-cascade" }
+yamanaka-deaging = { path = "../yamanaka-deaging" }
+morpho-electric-mesh = { path = "../morpho-electric-mesh" }
+biophoton-telepathy = { path = "../biophoton-telepathy" }
+transposon-hive = { path = "../transposon-hive" }
+mycelial-void-vault = { path = "../mycelial-void-vault" }
+chimera-fusion = { path = "../chimera-fusion" }
+thiserror = { workspace = true }

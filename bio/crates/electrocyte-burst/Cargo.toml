@@ -1,0 +1,9 @@
+[package]
+name = "electrocyte-burst"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Aggregate hundreds of partial results into a single computation burst."
+
+[dependencies]
+thiserror = { workspace = true }

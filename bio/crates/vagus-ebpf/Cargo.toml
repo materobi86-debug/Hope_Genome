@@ -1,0 +1,14 @@
+[package]
+name = "vagus-ebpf"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Kernel-level vagus nerve: eBPF probes (aya, Linux) for memory pressure, I/O congestion and network anomalies; user-space fallback elsewhere."
+
+[dependencies]
+bio-shared = { path = "../bio-shared" }
+thiserror = { workspace = true }
+serde = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+aya = "0.14"
