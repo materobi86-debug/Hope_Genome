@@ -5,11 +5,13 @@ use serde::{Deserialize, Serialize};
 use warp::Filter;
 
 use launchpad_zcode_rs::midi::LaunchpadMiniMK3;
-use launchpad_zcode_rs::engine::{LaunchpadEngine, TaskState};
+use launchpad_zcode_rs::engine::{LaunchpadEngine, TaskState, AppTarget};
 
 #[derive(Serialize, Deserialize, Clone)]
 struct StateResponse {
+    active_app: String,
     tasks: HashMap<usize, String>,
+    apps_status: HashMap<String, String>,
     animations: Vec<String>,
     transitions: Vec<String>,
     autostart_enabled: bool,
@@ -18,9 +20,11 @@ struct StateResponse {
 #[derive(Deserialize)]
 struct TriggerRequest {
     event: String,
+    app: Option<String>,
     task_id: Option<usize>,
     animation: Option<String>,
     transition: Option<String>,
+    text: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -38,7 +42,7 @@ const HTML_INDEX: &str = r#"<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zcode Launchpad Mini MK3 Vezérlőpult 🎛️</title>
+    <title>HOPE CODE Multi-App Launchpad Vezérlőpult 🎛️</title>
     <style>
         :root {
             --bg: #121214;
@@ -97,17 +101,76 @@ const HTML_INDEX: &str = r#"<!DOCTYPE html>
             padding: 20px;
             margin-bottom: 20px;
         }
+        .app-selector-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .app-card {
+            flex: 1;
+            background: #252530;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .app-card.active {
+            border-color: var(--accent);
+            background: #1b382b;
+        }
+        .app-card .status-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        .status-running { background: #00e676; box-shadow: 0 0 8px #00e676; }
+        .status-event { background: #ffd600; box-shadow: 0 0 8px #ffd600; animation: pulse 1s infinite; }
+        .status-stopped { background: #666; }
+        @keyframes pulse { 0% { opacity: 0.3; } 50% { opacity: 1.0; } 100% { opacity: 0.3; } }
+
+        .grid-layout {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            align-items: flex-start;
+        }
         .grid-container {
             display: grid;
             grid-template-columns: repeat(8, 1fr);
             gap: 8px;
-            max-width: 480px;
-            margin: 0 auto;
+            width: 400px;
             background: #09090b;
             padding: 15px;
             border-radius: 10px;
             border: 2px solid var(--border);
         }
+        .side-column {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 15px 5px;
+        }
+        .side-btn {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: #333;
+            border: 2px solid var(--border);
+            color: #fff;
+            font-size: 0.75rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .side-btn.active-view { background: #00e676; color: #000; box-shadow: 0 0 10px #00e676; }
+        .side-btn.flashing { background: #ffd600; color: #000; box-shadow: 0 0 10px #ffd600; }
+
         .pad {
             aspect-ratio: 1;
             background: #222;
@@ -125,6 +188,7 @@ const HTML_INDEX: &str = r#"<!DOCTYPE html>
         .pad.active { background: #ffd600; color: #000; box-shadow: 0 0 12px #ffd600; }
         .pad.success { background: #00e676; color: #000; box-shadow: 0 0 12px #00e676; }
         .pad.error { background: #ff1744; color: #fff; box-shadow: 0 0 12px #ff1744; }
+
         .controls-row {
             display: flex;
             gap: 15px;
@@ -168,26 +232,49 @@ const HTML_INDEX: &str = r#"<!DOCTYPE html>
 <body>
     <div class="container">
         <header>
-            <h1>🎛️ Zcode Launchpad Mini MK3 Vezérlőpult</h1>
+            <h1>🎛️ HOPE CODE Multi-App Launchpad Vezérlőpult</h1>
             <div>
                 <span style="color: #00e676;">● Daemon Aktív (Port: 9876)</span>
             </div>
         </header>
 
+        <!-- Multi-App Selector Dashboard Bar -->
+        <div class="app-selector-bar">
+            <div class="app-card active" id="app-card-hopecode" onclick="switchApp('hopecode')">
+                <h4><span class="status-dot status-running" id="dot-hopecode"></span> HOPE CODE / Zcode</h4>
+                <p style="font-size: 0.85rem; color: #aaa; margin: 5px 0 0 0;">Aktív Nézet (Oldalsó Gomb #1)</p>
+            </div>
+            <div class="app-card" id="app-card-claude" onclick="switchApp('claude_code')">
+                <h4><span class="status-dot status-running" id="dot-claude"></span> Claude Code</h4>
+                <p style="font-size: 0.85rem; color: #aaa; margin: 5px 0 0 0;">Háttérben Fut (Oldalsó Gomb #2)</p>
+            </div>
+            <div class="app-card" id="app-card-codex" onclick="switchApp('codex')">
+                <h4><span class="status-dot status-running" id="dot-codex"></span> OpenAI Codex</h4>
+                <p style="font-size: 0.85rem; color: #aaa; margin: 5px 0 0 0;">Háttérben Fut (Oldalsó Gomb #3)</p>
+            </div>
+        </div>
+
         <div class="tabs">
-            <button class="tab-btn active" onclick="showTab('virtual-midi')">📱 Virtuális MIDI Kijelző</button>
+            <button class="tab-btn active" onclick="showTab('virtual-midi')">📱 Virtuális MIDI & App Nézet</button>
             <button class="tab-btn" onclick="showTab('tts-noemi')">🗣️ Beszélő Noémi & 8-Bar EQ</button>
-            <button class="tab-btn" onclick="showTab('preview')">✨ Visualizációk Megtekintése</button>
+            <button class="tab-btn" onclick="showTab('preview')">✨ Visualizációk & Futó Felirat</button>
             <button class="tab-btn" onclick="showTab('settings')">⚙️ Indulás & Beállítások</button>
             <button class="tab-btn" onclick="showTab('ai-generator')">🤖 Új Visual Készítése AI-val</button>
         </div>
 
-        <!-- 1. Virtuális MIDI Kijelző Tab -->
+        <!-- 1. Virtuális MIDI Kijelző & App Switcher Tab -->
         <div id="virtual-midi" class="tab-content active">
             <div class="card">
-                <h3>Virtuális Launchpad 8x8 Mátrix Kijelző</h3>
-                <p>Kattints egy padra a státusz megváltoztatásához vagy teszteléshez!</p>
-                <div class="grid-container" id="padGrid">
+                <h3>Virtuális Launchpad 8x8 Mátrix & App Váltó Gombok</h3>
+                <p>Kattints az oldalsó kör gombokra az App váltáshoz! A mátrix az éppen kiválasztott AI alkalmazás taskjait mutatja.</p>
+
+                <div class="grid-layout">
+                    <div class="grid-container" id="padGrid"></div>
+                    <div class="side-column">
+                        <button class="side-btn active-view" id="side-hopecode" onclick="switchApp('hopecode')" title="HOPE CODE / Zcode">HC</button>
+                        <button class="side-btn" id="side-claude" onclick="switchApp('claude_code')" title="Claude Code">CC</button>
+                        <button class="side-btn" id="side-codex" onclick="switchApp('codex')" title="OpenAI Codex">CX</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -195,7 +282,7 @@ const HTML_INDEX: &str = r#"<!DOCTYPE html>
         <!-- 2. Beszélő Noémi & 8-Bar EQ Sync Tab -->
         <div id="tts-noemi" class="tab-content">
             <div class="card">
-                <h3>Edge-TTS Noémi Hangű Felolvasó & Real-Time 8-Bar EQ Sync</h3>
+                <h3>Edge-TTS Noémi Hangú Felolvasó & Real-Time 8-Bar EQ Sync</h3>
                 <p>Írd be a felolvasandó szöveget! A felolvasás alatt a Launchpadon élőben 8-bar audio equalizer animáció látható.</p>
                 <textarea id="ttsTextInput" placeholder="Írd ide a válasz szövegét, amit Noémi felolvas egymás utáni mondatokban..."></textarea>
                 <div class="controls-row">
@@ -204,13 +291,18 @@ const HTML_INDEX: &str = r#"<!DOCTYPE html>
             </div>
         </div>
 
-        <!-- 3. Visualizációk Megtekintése Tab -->
+        <!-- 3. Visualizációk & Futó Felirat Tab -->
         <div id="preview" class="tab-content">
             <div class="card">
-                <h3>Visualizáció és Átmenet Tesztelése</h3>
+                <h3>Visualizáció, Futó Felirat és Átmenet Tesztelése</h3>
                 <div class="controls-row">
                     <label>Effekt:</label>
                     <select id="animSelect">
+                        <option value="text_banner">text_banner (HOPE CODE / STOP!! futófelirat)</option>
+                        <option value="vortex_whirl">vortex_whirl</option>
+                        <option value="color_comb">color_comb</option>
+                        <option value="hypnotic_rings">hypnotic_rings</option>
+                        <option value="pulsar_burst">pulsar_burst</option>
                         <option value="equalizer_bars">equalizer_bars (8-bar audio spectrum)</option>
                         <option value="galaxy_spiral">galaxy_spiral</option>
                         <option value="plasma_wave">plasma_wave</option>
@@ -220,10 +312,6 @@ const HTML_INDEX: &str = r#"<!DOCTYPE html>
                         <option value="snake">snake</option>
                         <option value="pulse_beacon">pulse_beacon</option>
                         <option value="strobe_pulse">strobe_pulse</option>
-                        <option value="spinner">spinner</option>
-                        <option value="scan">scan</option>
-                        <option value="success_ripple">success_ripple</option>
-                        <option value="error_flash">error_flash</option>
                     </select>
 
                     <label>Átmenet:</label>
@@ -234,6 +322,9 @@ const HTML_INDEX: &str = r#"<!DOCTYPE html>
                         <option value="wipe_down">wipe_down</option>
                         <option value="none">none</option>
                     </select>
+
+                    <label>Egyedi szöveg (Futófelirathoz):</label>
+                    <input type="text" id="bannerTextInput" value="HOPE CODE" style="width: 120px;">
 
                     <button class="btn-action" onclick="triggerAnim()">Futtatás Kijelzőn & Hardware-en</button>
                 </div>
@@ -274,6 +365,8 @@ Kérlek, írj egy látványos [EFFEKT NEVE] effektet a fenti struktúrával!
     </div>
 
     <script>
+        let currentActiveApp = 'hopecode';
+
         function showTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
@@ -294,6 +387,29 @@ Kérlek, írj egy látványos [EFFEKT NEVE] effektet a fenti struktúrával!
             }
         }
 
+        async function switchApp(appName) {
+            currentActiveApp = appName;
+            document.querySelectorAll('.app-card').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.side-btn').forEach(b => b.classList.remove('active-view'));
+
+            if (appName === 'hopecode') {
+                document.getElementById('app-card-hopecode').classList.add('active');
+                document.getElementById('side-hopecode').classList.add('active-view');
+            } else if (appName === 'claude_code') {
+                document.getElementById('app-card-claude').classList.add('active');
+                document.getElementById('side-claude').classList.add('active-view');
+            } else if (appName === 'codex') {
+                document.getElementById('app-card-codex').classList.add('active');
+                document.getElementById('side-codex').classList.add('active-view');
+            }
+
+            await fetch('/api/trigger', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ event: 'switch_app', app: appName })
+            });
+        }
+
         async function fetchState() {
             try {
                 const res = await fetch('/api/state');
@@ -312,10 +428,11 @@ Kérlek, írj egy látványos [EFFEKT NEVE] effektet a fenti struktúrával!
         async function triggerAnim() {
             const anim = document.getElementById('animSelect').value;
             const trans = document.getElementById('transSelect').value;
+            const textVal = document.getElementById('bannerTextInput').value;
             await fetch('/api/trigger', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ event: 'command', animation: anim, transition: trans })
+                body: JSON.stringify({ event: 'command', app: currentActiveApp, animation: anim, transition: trans, text: textVal })
             });
         }
 
@@ -333,7 +450,7 @@ Kérlek, írj egy látványos [EFFEKT NEVE] effektet a fenti struktúrával!
             await fetch('/api/trigger', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ event: 'task_start', task_id: taskId, animation: 'galaxy_spiral', transition: 'zoom_iris' })
+                body: JSON.stringify({ event: 'task_start', app: currentActiveApp, task_id: taskId, animation: 'galaxy_spiral', transition: 'zoom_iris' })
             });
         }
 
@@ -355,20 +472,27 @@ Kérlek, írj egy látványos [EFFEKT NEVE] effektet a fenti struktúrával!
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("[Control Panel] Starting Web GUI Control Panel for Launchpad Mini MK3 on http://127.0.0.1:8080...");
+    println!("[Control Panel] Starting HOPE CODE Multi-App Web Control Panel on http://127.0.0.1:8080...");
 
     let lp = LaunchpadMiniMK3::new(true);
     let engine = Arc::new(LaunchpadEngine::new(lp));
 
+    let _engine_state = Arc::clone(&engine);
     let api_state = warp::path!("api" / "state").map(move || {
         let mut tasks_map = HashMap::new();
-        for i in 0..64 {
-            tasks_map.insert(i, "pending".to_string());
-        }
+        tasks_map.insert(0, "pending".to_string());
+
+        let mut apps_map = HashMap::new();
+        apps_map.insert("hopecode".to_string(), "running".to_string());
+        apps_map.insert("claude_code".to_string(), "running".to_string());
+        apps_map.insert("codex".to_string(), "running".to_string());
+
         let resp = StateResponse {
+            active_app: "hopecode".to_string(),
             tasks: tasks_map,
+            apps_status: apps_map,
             animations: vec![
-                "equalizer_bars".into(), "galaxy_spiral".into(), "plasma_wave".into(), "matrix_rain".into(),
+                "text_banner".into(), "equalizer_bars".into(), "galaxy_spiral".into(), "plasma_wave".into(), "matrix_rain".into(),
                 "fireworks".into(), "rainbow_wave".into(), "snake".into()
             ],
             transitions: vec!["zoom_iris".into(), "dissolve".into(), "wipe_right".into()],
@@ -385,11 +509,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let anim = req.animation.as_deref().unwrap_or("equalizer_bars");
             let trans = req.transition.as_deref().unwrap_or("zoom_iris");
             let task_id = req.task_id.unwrap_or(0);
+            let text_val = req.text.as_deref().unwrap_or("HOPE CODE");
 
-            if req.event == "task_start" {
-                engine_trigger.set_task_state(task_id, TaskState::Active);
+            let app_target = if let Some(app_str) = req.app.as_deref() {
+                AppTarget::from_str(app_str)
+            } else {
+                AppTarget::HopeCode
+            };
+
+            if req.event == "switch_app" {
+                engine_trigger.set_active_app(app_target);
+            } else if req.event == "task_start" {
+                engine_trigger.set_task_state_for_app(app_target, task_id, TaskState::Active);
+                engine_trigger.animate_operation_with_text(anim, trans, 0.8, text_val);
+            } else {
+                engine_trigger.animate_operation_with_text(anim, trans, 0.8, text_val);
             }
-            engine_trigger.animate_operation(anim, trans, 0.8);
+
             warp::reply::json(&"ok")
         });
 

@@ -44,7 +44,7 @@ async def speak_text_with_launchpad_sync(text: str, host: str = "127.0.0.1", por
         play_proc = None
         if os.name == 'nt':
             # Windows PowerShell MediaPlayer for MP3 files
-            vbs_cmd = f"Add-Type -AssemblyName presentationCore; $player = New-Object System.Windows.Media.MediaPlayer; $player.Open('{output_file}'); $player.Play(); Start-Sleep -s 3"
+            vbs_cmd = f"Add-Type -AssemblyName presentationCore; $player = New-Object System.Windows.Media.MediaPlayer; $player.Open([System.Uri]'{output_file}'); $player.Play(); Start-Sleep -s 3"
             play_proc = subprocess.Popen(["powershell", "-c", vbs_cmd])
         else:
             # Linux/macOS
