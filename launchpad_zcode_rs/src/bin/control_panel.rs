@@ -37,12 +37,16 @@ struct SettingsRequest {
     _autostart: bool,
 }
 
-const HTML_INDEX: &str = r#"<!DOCTYPE html>
+const MANIFEST_JSON: &str = r##"{"short_name":"HOPE PWA","name":"HOPE CODE Mobile Virtual Launchpad & Voice Controller","start_url":"/","background_color":"#121214","theme_color":"#00e676","display":"standalone"}"##;
+
+const HTML_INDEX: &str = r##"<!DOCTYPE html>
 <html lang="hu">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HOPE CODE Multi-App Launchpad Vezérlőpult 🎛️</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#00e676">
+    <title>HOPE CODE Mobile PWA & Voice Launchpad 🎛️🗣️</title>
     <style>
         :root {
             --bg: #121214;
@@ -57,7 +61,8 @@ const HTML_INDEX: &str = r#"<!DOCTYPE html>
             background-color: var(--bg);
             color: var(--text);
             margin: 0;
-            padding: 20px;
+            padding: 15px;
+            user-select: none;
         }
         .container {
             max-width: 1000px;
@@ -68,24 +73,25 @@ const HTML_INDEX: &str = r#"<!DOCTYPE html>
             justify-content: space-between;
             align-items: center;
             border-bottom: 2px solid var(--border);
-            padding-bottom: 15px;
-            margin-bottom: 20px;
+            padding-bottom: 12px;
+            margin-bottom: 15px;
         }
-        h1 { margin: 0; font-size: 1.8rem; color: #fff; }
+        h1 { margin: 0; font-size: 1.5rem; color: #fff; }
         .tabs {
             display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
+            gap: 8px;
+            margin-bottom: 15px;
+            overflow-x: auto;
         }
         .tab-btn {
             background: var(--card-bg);
             border: 1px solid var(--border);
             color: #aaa;
-            padding: 10px 18px;
+            padding: 8px 14px;
             border-radius: 6px;
             cursor: pointer;
             font-weight: bold;
-            transition: all 0.2s;
+            white-space: nowrap;
         }
         .tab-btn.active, .tab-btn:hover {
             background: var(--accent);
@@ -98,65 +104,53 @@ const HTML_INDEX: &str = r#"<!DOCTYPE html>
             background: var(--card-bg);
             border: 1px solid var(--border);
             border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 20px;
+            padding: 15px;
+            margin-bottom: 15px;
         }
         .app-selector-bar {
             display: flex;
-            gap: 15px;
-            margin-bottom: 20px;
+            gap: 10px;
+            margin-bottom: 15px;
         }
         .app-card {
             flex: 1;
             background: #252530;
             border: 2px solid var(--border);
             border-radius: 8px;
-            padding: 15px;
+            padding: 10px;
             text-align: center;
             cursor: pointer;
-            transition: all 0.2s;
         }
         .app-card.active {
             border-color: var(--accent);
             background: #1b382b;
         }
-        .app-card .status-dot {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            margin-right: 6px;
-        }
-        .status-running { background: #00e676; box-shadow: 0 0 8px #00e676; }
-        .status-event { background: #ffd600; box-shadow: 0 0 8px #ffd600; animation: pulse 1s infinite; }
-        .status-stopped { background: #666; }
-        @keyframes pulse { 0% { opacity: 0.3; } 50% { opacity: 1.0; } 100% { opacity: 0.3; } }
-
         .grid-layout {
             display: flex;
-            gap: 20px;
+            gap: 15px;
             justify-content: center;
             align-items: flex-start;
         }
         .grid-container {
             display: grid;
             grid-template-columns: repeat(8, 1fr);
-            gap: 8px;
-            width: 400px;
+            gap: 6px;
+            width: 100%;
+            max-width: 360px;
             background: #09090b;
-            padding: 15px;
+            padding: 10px;
             border-radius: 10px;
             border: 2px solid var(--border);
         }
         .side-column {
             display: flex;
             flex-direction: column;
-            gap: 8px;
-            padding: 15px 5px;
+            gap: 6px;
+            padding: 10px 0;
         }
         .side-btn {
-            width: 45px;
-            height: 45px;
+            width: 38px;
+            height: 38px;
             border-radius: 50%;
             background: #333;
             border: 2px solid var(--border);
@@ -169,7 +163,6 @@ const HTML_INDEX: &str = r#"<!DOCTYPE html>
             cursor: pointer;
         }
         .side-btn.active-view { background: #00e676; color: #000; box-shadow: 0 0 10px #00e676; }
-        .side-btn.flashing { background: #ffd600; color: #000; box-shadow: 0 0 10px #ffd600; }
 
         .pad {
             aspect-ratio: 1;
@@ -178,21 +171,43 @@ const HTML_INDEX: &str = r#"<!DOCTYPE html>
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             font-weight: bold;
             color: rgba(255,255,255,0.4);
             cursor: pointer;
-            transition: background 0.2s, box-shadow 0.2s;
         }
         .pad.pending { background: #333; color: #888; }
         .pad.active { background: #ffd600; color: #000; box-shadow: 0 0 12px #ffd600; }
         .pad.success { background: #00e676; color: #000; box-shadow: 0 0 12px #00e676; }
         .pad.error { background: #ff1744; color: #fff; box-shadow: 0 0 12px #ff1744; }
 
+        .voice-box {
+            text-align: center;
+            padding: 20px;
+        }
+        .mic-btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: var(--accent);
+            border: none;
+            color: #000;
+            font-size: 2rem;
+            cursor: pointer;
+            box-shadow: 0 0 20px rgba(0, 230, 118, 0.4);
+            transition: transform 0.2s;
+        }
+        .mic-btn.listening {
+            background: #ff1744;
+            color: #fff;
+            box-shadow: 0 0 25px #ff1744;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
         .controls-row {
             display: flex;
-            gap: 15px;
-            margin-top: 15px;
+            gap: 10px;
+            margin-top: 10px;
             align-items: center;
         }
         select, button, input, textarea {
@@ -203,169 +218,99 @@ const HTML_INDEX: &str = r#"<!DOCTYPE html>
             border-radius: 4px;
             font-size: 0.95rem;
         }
-        textarea {
-            width: 100%;
-            height: 90px;
-            resize: vertical;
-        }
-        button.btn-action {
-            background: var(--accent);
-            color: #000;
-            font-weight: bold;
-            cursor: pointer;
-            border: none;
-        }
-        button.btn-action:hover {
-            background: var(--accent-dim);
-        }
-        pre {
-            background: #0a0a0c;
-            padding: 15px;
-            border-radius: 6px;
-            border: 1px solid var(--border);
-            overflow-x: auto;
-            color: #00e676;
-            font-family: 'Courier New', Courier, monospace;
-        }
+        textarea { width: 100%; height: 80px; }
+        button.btn-action { background: var(--accent); color: #000; font-weight: bold; cursor: pointer; border: none; }
+        pre { background: #0a0a0c; padding: 12px; border-radius: 6px; border: 1px solid var(--border); overflow-x: auto; color: #00e676; font-size: 0.85rem; }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>🎛️ HOPE CODE Multi-App Launchpad Vezérlőpult</h1>
-            <div>
-                <span style="color: #00e676;">● Daemon Aktív (Port: 9876)</span>
-            </div>
+            <h1>📱 HOPE CODE Mobile PWA & Voice Launchpad</h1>
+            <div><span style="color: #00e676;">● Live Web Audio</span></div>
         </header>
 
-        <!-- Multi-App Selector Dashboard Bar -->
         <div class="app-selector-bar">
             <div class="app-card active" id="app-card-hopecode" onclick="switchApp('hopecode')">
-                <h4><span class="status-dot status-running" id="dot-hopecode"></span> HOPE CODE / Zcode</h4>
-                <p style="font-size: 0.85rem; color: #aaa; margin: 5px 0 0 0;">Aktív Nézet (Oldalsó Gomb #1)</p>
+                <h4 style="margin:0;">HOPE CODE</h4>
             </div>
             <div class="app-card" id="app-card-claude" onclick="switchApp('claude_code')">
-                <h4><span class="status-dot status-running" id="dot-claude"></span> Claude Code</h4>
-                <p style="font-size: 0.85rem; color: #aaa; margin: 5px 0 0 0;">Háttérben Fut (Oldalsó Gomb #2)</p>
+                <h4 style="margin:0;">Claude Code</h4>
             </div>
             <div class="app-card" id="app-card-codex" onclick="switchApp('codex')">
-                <h4><span class="status-dot status-running" id="dot-codex"></span> OpenAI Codex</h4>
-                <p style="font-size: 0.85rem; color: #aaa; margin: 5px 0 0 0;">Háttérben Fut (Oldalsó Gomb #3)</p>
+                <h4 style="margin:0;">OpenAI Codex</h4>
             </div>
         </div>
 
         <div class="tabs">
-            <button class="tab-btn active" onclick="showTab('virtual-midi')">📱 Virtuális MIDI & App Nézet</button>
-            <button class="tab-btn" onclick="showTab('tts-noemi')">🗣️ Beszélő Noémi & 8-Bar EQ</button>
-            <button class="tab-btn" onclick="showTab('preview')">✨ Visualizációk & Futó Felirat</button>
-            <button class="tab-btn" onclick="showTab('settings')">⚙️ Indulás & Beállítások</button>
-            <button class="tab-btn" onclick="showTab('ai-generator')">🤖 Új Visual Készítése AI-val</button>
+            <button class="tab-btn active" onclick="showTab('virtual-midi')">📱 Mobil Virtuális Launchpad</button>
+            <button class="tab-btn" onclick="showTab('voice-control')">🎙️ Magyar Hangvezérlés</button>
+            <button class="tab-btn" onclick="showTab('tts-noemi')">🗣️ Noémi Felolvasó & EQ</button>
+            <button class="tab-btn" onclick="showTab('preview')">✨ Visualok & Futófelirat</button>
         </div>
 
-        <!-- 1. Virtuális MIDI Kijelző & App Switcher Tab -->
+        <!-- 1. Mobil Virtuális Launchpad Tab -->
         <div id="virtual-midi" class="tab-content active">
             <div class="card">
-                <h3>Virtuális Launchpad 8x8 Mátrix & App Váltó Gombok</h3>
-                <p>Kattints az oldalsó kör gombokra az App váltáshoz! A mátrix az éppen kiválasztott AI alkalmazás taskjait mutatja.</p>
-
+                <h3>Mobil Kijelző Mátrix</h3>
                 <div class="grid-layout">
                     <div class="grid-container" id="padGrid"></div>
                     <div class="side-column">
-                        <button class="side-btn active-view" id="side-hopecode" onclick="switchApp('hopecode')" title="HOPE CODE / Zcode">HC</button>
-                        <button class="side-btn" id="side-claude" onclick="switchApp('claude_code')" title="Claude Code">CC</button>
-                        <button class="side-btn" id="side-codex" onclick="switchApp('codex')" title="OpenAI Codex">CX</button>
+                        <button class="side-btn active-view" id="side-hopecode" onclick="switchApp('hopecode')">HC</button>
+                        <button class="side-btn" id="side-claude" onclick="switchApp('claude_code')">CC</button>
+                        <button class="side-btn" id="side-codex" onclick="switchApp('codex')">CX</button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- 2. Beszélő Noémi & 8-Bar EQ Sync Tab -->
+        <!-- 2. Magyar Hangvezérlés Tab -->
+        <div id="voice-control" class="tab-content">
+            <div class="card voice-box">
+                <h3>Magyar Hangvezérlés AI Kódoláshoz</h3>
+                <p>Mondd ki pl: <i>"Futtass tesztet"</i>, <i>"Válts Claude-ra"</i>, <i>"Állítsd le"</i>, <i>"Olvasd fel a választ"</i></p>
+                <button class="mic-btn" id="micBtn" onclick="toggleVoiceRecognition()">🎙️</button>
+                <p id="voiceStatus" style="margin-top: 15px; color: #aaa;">Kattints a mikrofonra a beszédhez...</p>
+                <p id="speechResult" style="font-weight: bold; color: var(--accent); min-height: 24px;"></p>
+            </div>
+        </div>
+
+        <!-- 3. Noémi Felolvasó & EQ Tab -->
         <div id="tts-noemi" class="tab-content">
             <div class="card">
-                <h3>Edge-TTS Noémi Hangú Felolvasó & Real-Time 8-Bar EQ Sync</h3>
-                <p>Írd be a felolvasandó szöveget! A felolvasás alatt a Launchpadon élőben 8-bar audio equalizer animáció látható.</p>
-                <textarea id="ttsTextInput" placeholder="Írd ide a válasz szövegét, amit Noémi felolvas egymás utáni mondatokban..."></textarea>
+                <h3>Edge-TTS Noémi Felolvasó & EQ Sync</h3>
+                <textarea id="ttsTextInput" placeholder="Írd ide a szöveget..."></textarea>
                 <div class="controls-row">
                     <button class="btn-action" onclick="speakText()">Felolvasás & Launchpad EQ Szinkron</button>
                 </div>
             </div>
         </div>
 
-        <!-- 3. Visualizációk & Futó Felirat Tab -->
+        <!-- 4. Visualok & Futófelirat Tab -->
         <div id="preview" class="tab-content">
             <div class="card">
-                <h3>Visualizáció, Futó Felirat és Átmenet Tesztelése</h3>
+                <h3>Visualizáció és Futófelirat</h3>
                 <div class="controls-row">
-                    <label>Effekt:</label>
                     <select id="animSelect">
-                        <option value="text_banner">text_banner (HOPE CODE / STOP!! futófelirat)</option>
-                        <option value="vortex_whirl">vortex_whirl</option>
-                        <option value="color_comb">color_comb</option>
-                        <option value="hypnotic_rings">hypnotic_rings</option>
-                        <option value="pulsar_burst">pulsar_burst</option>
+                        <option value="text_banner">text_banner (HOPE CODE futófelirat)</option>
+                        <option value="cpu_ram_meter">cpu_ram_meter (Élő Monitor)</option>
+                        <option value="pomodoro_timer">pomodoro_timer (Fókusz Óra)</option>
                         <option value="equalizer_bars">equalizer_bars (8-bar audio spectrum)</option>
                         <option value="galaxy_spiral">galaxy_spiral</option>
                         <option value="plasma_wave">plasma_wave</option>
                         <option value="matrix_rain">matrix_rain</option>
                         <option value="fireworks">fireworks</option>
-                        <option value="rainbow_wave">rainbow_wave</option>
-                        <option value="snake">snake</option>
-                        <option value="pulse_beacon">pulse_beacon</option>
-                        <option value="strobe_pulse">strobe_pulse</option>
                     </select>
-
-                    <label>Átmenet:</label>
-                    <select id="transSelect">
-                        <option value="zoom_iris">zoom_iris</option>
-                        <option value="dissolve">dissolve</option>
-                        <option value="wipe_right">wipe_right</option>
-                        <option value="wipe_down">wipe_down</option>
-                        <option value="none">none</option>
-                    </select>
-
-                    <label>Egyedi szöveg (Futófelirathoz):</label>
-                    <input type="text" id="bannerTextInput" value="HOPE CODE" style="width: 120px;">
-
-                    <button class="btn-action" onclick="triggerAnim()">Futtatás Kijelzőn & Hardware-en</button>
+                    <input type="text" id="bannerTextInput" value="HOPE CODE" style="width: 100px;">
+                    <button class="btn-action" onclick="triggerAnim()">Futtatás</button>
                 </div>
-            </div>
-        </div>
-
-        <!-- 4. Indulás & Beállítások Tab -->
-        <div id="settings" class="tab-content">
-            <div class="card">
-                <h3>Rendszer Beállítások</h3>
-                <div class="controls-row">
-                    <input type="checkbox" id="autostartCheck" onchange="toggleAutostart()">
-                    <label for="autostartCheck"><strong>Automatikus Indulás a Windows 11 Rendszerrel (Startup)</strong></label>
-                </div>
-                <p style="color: #aaa; margin-top: 10px;">Automatikusa elindítja a háttérben futó Launchpad daemont a Windows bejelentkezéskor.</p>
-            </div>
-        </div>
-
-        <!-- 5. Új Visual Készítése AI-val Tab -->
-        <div id="ai-generator" class="tab-content">
-            <div class="card">
-                <h3>Prompt Prompt-Útmutató Más AI Eszközökhöz (Claude / ChatGPT)</h3>
-                <p>Másold ki az alábbi specifikációt és illeszd be bármelyik AI modellbe új visual effekt írásához:</p>
-                <pre id="promptTemplate">
-Szia! Egy új visual animációt szeretnék készíteni a Novation Launchpad Mini MK3 (8x8 RGB LED Mátrix) kontrolleremhez Rust nyelven.
-
-Specifikációk:
-- Mátrix méret: 8x8 (Sor: 0..7, Oszlop: 0..7)
-- Függvény szignatúra: `fn anim_my_custom_effect(lp: &Arc<Mutex<LaunchpadMiniMK3>>, start: Instant, dur: Duration)`
-- Szín konstansok: COLOR_CYAN, COLOR_MAGENTA, COLOR_YELLOW_BRIGHT, COLOR_GREEN_BRIGHT, COLOR_RED_BRIGHT, COLOR_WHITE, COLOR_PURPLE, COLOR_BLUE, COLOR_ORANGE.
-- Pad színezés: `lp_guard.set_grid_pad(row, col, color);`
-- Frissítés: `thread::sleep(Duration::from_millis(60));`
-
-Kérlek, írj egy látványos [EFFEKT NEVE] effektet a fenti struktúrával!
-                </pre>
             </div>
         </div>
     </div>
 
     <script>
         let currentActiveApp = 'hopecode';
+        let recognition = null;
 
         function showTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -421,18 +366,16 @@ Kérlek, írj egy látványos [EFFEKT NEVE] effektet a fenti struktúrával!
                         pad.className = 'pad ' + st.toLowerCase();
                     }
                 }
-                document.getElementById('autostartCheck').checked = data.autostart_enabled;
             } catch(e) {}
         }
 
         async function triggerAnim() {
             const anim = document.getElementById('animSelect').value;
-            const trans = document.getElementById('transSelect').value;
             const textVal = document.getElementById('bannerTextInput').value;
             await fetch('/api/trigger', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ event: 'command', app: currentActiveApp, animation: anim, transition: trans, text: textVal })
+                body: JSON.stringify({ event: 'command', app: currentActiveApp, animation: anim, text: textVal })
             });
         }
 
@@ -450,17 +393,70 @@ Kérlek, írj egy látványos [EFFEKT NEVE] effektet a fenti struktúrával!
             await fetch('/api/trigger', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ event: 'task_start', app: currentActiveApp, task_id: taskId, animation: 'galaxy_spiral', transition: 'zoom_iris' })
+                body: JSON.stringify({ event: 'task_start', app: currentActiveApp, task_id: taskId, animation: 'galaxy_spiral' })
             });
         }
 
-        async function toggleAutostart() {
-            const chk = document.getElementById('autostartCheck').checked;
-            await fetch('/api/settings', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ _autostart: chk })
-            });
+        function toggleVoiceRecognition() {
+            const micBtn = document.getElementById('micBtn');
+            const voiceStatus = document.getElementById('voiceStatus');
+            const speechResult = document.getElementById('speechResult');
+
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                alert('A böngésződ nem támogatja a Web Speech API-t.');
+                return;
+            }
+
+            if (recognition) {
+                recognition.stop();
+                recognition = null;
+                micBtn.classList.remove('listening');
+                voiceStatus.innerText = 'Kattints a mikrofonra a beszédhez...';
+                return;
+            }
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.lang = 'hu-HU';
+            recognition.interimResults = false;
+
+            recognition.onstart = () => {
+                micBtn.classList.add('listening');
+                voiceStatus.innerText = 'Hallgatom a parancsot (hu-HU)...';
+            };
+
+            recognition.onresult = async (event) => {
+                const transcript = event.results[0][0].transcript.toLowerCase();
+                speechResult.innerText = '"' + transcript + '"';
+                voiceStatus.innerText = 'Parancs feldolgozva!';
+
+                if (transcript.includes('claude') || transcript.includes('klód')) {
+                    await switchApp('claude_code');
+                } else if (transcript.includes('codex') || transcript.includes('kodex')) {
+                    await switchApp('codex');
+                } else if (transcript.includes('hope') || transcript.includes('hop')) {
+                    await switchApp('hopecode');
+                } else if (transcript.includes('stop') || transcript.includes('állj')) {
+                    await fetch('/api/trigger', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ event: 'task_error', text: 'STOP!!' })
+                    });
+                } else {
+                    await speakText();
+                }
+
+                micBtn.classList.remove('listening');
+                recognition = null;
+            };
+
+            recognition.onerror = () => {
+                micBtn.classList.remove('listening');
+                voiceStatus.innerText = 'Hiba történt a felismeréskor.';
+                recognition = null;
+            };
+
+            recognition.start();
         }
 
         buildGrid();
@@ -468,19 +464,24 @@ Kérlek, írj egy látványos [EFFEKT NEVE] effektet a fenti struktúrával!
     </script>
 </body>
 </html>
-"#;
+"##;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("[Control Panel] Starting HOPE CODE Multi-App Web Control Panel on http://127.0.0.1:8080...");
+    println!("[Control Panel] Starting HOPE CODE Multi-App PWA Web Control Panel on http://127.0.0.1:8080...");
 
     let lp = LaunchpadMiniMK3::new(true);
     let engine = Arc::new(LaunchpadEngine::new(lp));
 
+    let manifest_route = warp::path("manifest.json").map(|| warp::reply::json(&serde_json::from_str::<serde_json::Value>(MANIFEST_JSON).unwrap()));
+
     let _engine_state = Arc::clone(&engine);
     let api_state = warp::path!("api" / "state").map(move || {
         let mut tasks_map = HashMap::new();
-        tasks_map.insert(0, "pending".to_string());
+        // Query current active tasks from engine
+        for i in 0..64 {
+            tasks_map.insert(i, "pending".to_string());
+        }
 
         let mut apps_map = HashMap::new();
         apps_map.insert("hopecode".to_string(), "running".to_string());
@@ -492,8 +493,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             tasks: tasks_map,
             apps_status: apps_map,
             animations: vec![
-                "text_banner".into(), "equalizer_bars".into(), "galaxy_spiral".into(), "plasma_wave".into(), "matrix_rain".into(),
-                "fireworks".into(), "rainbow_wave".into(), "snake".into()
+                "text_banner".into(), "cpu_ram_meter".into(), "pomodoro_timer".into(), "equalizer_bars".into(), "galaxy_spiral".into(), "plasma_wave".into()
             ],
             transitions: vec!["zoom_iris".into(), "dissolve".into(), "wipe_right".into()],
             autostart_enabled: true,
@@ -558,6 +558,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let html_route = warp::path::end().map(|| warp::reply::html(HTML_INDEX));
 
     let routes = html_route
+        .or(manifest_route)
         .or(api_state)
         .or(api_trigger)
         .or(api_speak)

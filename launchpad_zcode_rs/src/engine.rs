@@ -20,6 +20,9 @@ pub enum AppTarget {
     HopeCode,
     ClaudeCode,
     Codex,
+    SystemMonitor,
+    PomodoroTimer,
+    VoiceControl,
 }
 
 impl AppTarget {
@@ -27,7 +30,33 @@ impl AppTarget {
         match s.to_lowercase().as_str() {
             "claude" | "claude_code" | "claude-code" => AppTarget::ClaudeCode,
             "codex" | "openai_codex" | "openai-codex" => AppTarget::Codex,
+            "monitor" | "cpu_ram" => AppTarget::SystemMonitor,
+            "pomodoro" => AppTarget::PomodoroTimer,
+            "voice" | "speech" => AppTarget::VoiceControl,
             _ => AppTarget::HopeCode,
+        }
+    }
+
+    pub fn to_top_cc(&self) -> u8 {
+        match self {
+            AppTarget::HopeCode => 91,      // Top Button 1
+            AppTarget::ClaudeCode => 92,    // Top Button 2
+            AppTarget::Codex => 93,         // Top Button 3
+            AppTarget::SystemMonitor => 94, // Top Button 4
+            AppTarget::PomodoroTimer => 95, // Top Button 5
+            AppTarget::VoiceControl => 96,  // Top Button 6
+        }
+    }
+
+    pub fn from_top_cc(cc: u8) -> Option<Self> {
+        match cc {
+            91 => Some(AppTarget::HopeCode),
+            92 => Some(AppTarget::ClaudeCode),
+            93 => Some(AppTarget::Codex),
+            94 => Some(AppTarget::SystemMonitor),
+            95 => Some(AppTarget::PomodoroTimer),
+            96 => Some(AppTarget::VoiceControl),
+            _ => None,
         }
     }
 
@@ -36,6 +65,7 @@ impl AppTarget {
             AppTarget::HopeCode => 89,
             AppTarget::ClaudeCode => 79,
             AppTarget::Codex => 69,
+            _ => 59,
         }
     }
 }
@@ -72,7 +102,7 @@ pub struct LaunchpadEngine {
 impl LaunchpadEngine {
     pub fn new(lp: LaunchpadMiniMK3) -> Self {
         let mut app_tasks_map = HashMap::new();
-        for app in [AppTarget::HopeCode, AppTarget::ClaudeCode, AppTarget::Codex] {
+        for app in [AppTarget::HopeCode, AppTarget::ClaudeCode, AppTarget::Codex, AppTarget::SystemMonitor, AppTarget::PomodoroTimer, AppTarget::VoiceControl] {
             let mut tasks = HashMap::new();
             for i in 0..64 {
                 tasks.insert(i, TaskState::Pending);
@@ -82,7 +112,7 @@ impl LaunchpadEngine {
 
         let mut running_map = HashMap::new();
         let mut flashing_map = HashMap::new();
-        for app in [AppTarget::HopeCode, AppTarget::ClaudeCode, AppTarget::Codex] {
+        for app in [AppTarget::HopeCode, AppTarget::ClaudeCode, AppTarget::Codex, AppTarget::SystemMonitor, AppTarget::PomodoroTimer, AppTarget::VoiceControl] {
             running_map.insert(app.clone(), true);
             flashing_map.insert(app, false);
         }
@@ -172,6 +202,7 @@ impl LaunchpadEngine {
         let tasks_guard = &all_tasks_guard[&curr_app];
         let mut lp_guard = self.lp.lock().unwrap();
 
+        // 1. Render 8x8 matrix for active app
         for (&task_id, state) in tasks_guard.iter() {
             let row = (task_id / 8) as u8;
             let col = (task_id % 8) as u8;
@@ -179,6 +210,18 @@ impl LaunchpadEngine {
             lp_guard.set_grid_pad(row, col, color);
         }
 
+        // 2. Render Top Control Buttons (CC 91..96) for Hardware View Switching
+        for app in [AppTarget::HopeCode, AppTarget::ClaudeCode, AppTarget::Codex, AppTarget::SystemMonitor, AppTarget::PomodoroTimer, AppTarget::VoiceControl] {
+            let cc_note = app.to_top_cc();
+            let color = if app == curr_app {
+                COLOR_GREEN_BRIGHT // Currently active hardware view
+            } else {
+                COLOR_CYAN // Available view
+            };
+            lp_guard.set_led(cc_note, color, true);
+        }
+
+        // 3. Render Side Column App Switcher LEDs
         let flash_guard = self.app_flashing.lock().unwrap();
         let run_guard = self.app_running.lock().unwrap();
 
@@ -236,6 +279,12 @@ impl LaunchpadEngine {
                         let col = (task_id % 8) as u8;
                         let color = Self::get_color_for_state(state, toggle);
                         lp_guard.set_grid_pad(row, col, color);
+                    }
+
+                    for app in [AppTarget::HopeCode, AppTarget::ClaudeCode, AppTarget::Codex, AppTarget::SystemMonitor, AppTarget::PomodoroTimer, AppTarget::VoiceControl] {
+                        let cc_note = app.to_top_cc();
+                        let color = if app == curr_app { COLOR_GREEN_BRIGHT } else { COLOR_CYAN };
+                        lp_guard.set_led(cc_note, color, true);
                     }
 
                     let flash_guard = app_flashing_clone.lock().unwrap();
@@ -338,7 +387,7 @@ impl LaunchpadEngine {
         });
     }
 
-    // --- Jules Idea #1: Live CPU & RAM Performance Meter ---
+    // --- Live CPU & RAM Performance Meter ---
     fn anim_cpu_ram_meter(lp: &Arc<Mutex<LaunchpadMiniMK3>>, start: Instant, dur: Duration) {
         let mut rng = rand::thread_rng();
         while start.elapsed() < dur {
@@ -346,7 +395,6 @@ impl LaunchpadEngine {
                 let mut lp_guard = lp.lock().unwrap();
                 lp_guard.clear();
 
-                // Top 2 rows: CPU Load (Green -> Yellow -> Red)
                 let cpu_val = rng.gen_range(2..=8);
                 for col in 0..cpu_val {
                     let color = if col >= 6 { COLOR_RED_BRIGHT } else if col >= 4 { COLOR_YELLOW_BRIGHT } else { COLOR_GREEN_BRIGHT };
@@ -354,7 +402,6 @@ impl LaunchpadEngine {
                     lp_guard.set_grid_pad(1, col as u8, color);
                 }
 
-                // Bottom 2 rows: RAM Usage (Cyan -> Blue)
                 let ram_val = rng.gen_range(3..=8);
                 for col in 0..ram_val {
                     let color = if col >= 6 { COLOR_PURPLE } else { COLOR_CYAN };
@@ -366,7 +413,7 @@ impl LaunchpadEngine {
         }
     }
 
-    // --- Jules Idea #2: Pomodoro Focus Clock Ring ---
+    // --- Pomodoro Focus Clock Ring ---
     fn anim_pomodoro_timer(lp: &Arc<Mutex<LaunchpadMiniMK3>>, start: Instant, dur: Duration) {
         let outer_ring = [
             (0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6), (0, 7),
@@ -390,7 +437,7 @@ impl LaunchpadEngine {
         }
     }
 
-    // --- Jules Idea #3: Git Commit & AI Proof Sentinel ---
+    // --- Git Commit & AI Proof Sentinel ---
     fn anim_git_sentinel(lp: &Arc<Mutex<LaunchpadMiniMK3>>, start: Instant, dur: Duration) {
         let rings = [
             vec![(3, 3), (3, 4), (4, 3), (4, 4)],

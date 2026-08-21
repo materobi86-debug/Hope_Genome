@@ -1,9 +1,10 @@
 use std::collections::HashMap;
-use midir::{MidiOutput, MidiOutputConnection};
+use midir::{MidiInput, MidiInputConnection, MidiOutput, MidiOutputConnection};
 use crate::config::*;
 
 pub struct LaunchpadMiniMK3 {
     conn: Option<MidiOutputConnection>,
+    in_conn: Option<MidiInputConnection<()>>,
     virtual_mode: bool,
     pub buffer: HashMap<u8, u8>,
 }
@@ -12,6 +13,7 @@ impl LaunchpadMiniMK3 {
     pub fn new(virtual_mode: bool) -> Self {
         Self {
             conn: None,
+            in_conn: None,
             virtual_mode,
             buffer: HashMap::new(),
         }
@@ -40,8 +42,26 @@ impl LaunchpadMiniMK3 {
         if let Some(port) = target_port {
             let conn = midi_out.connect(&port, "launchpad_out").map_err(|e| e.to_string())?;
             self.conn = Some(conn);
+
+            // Connect MIDI input for physical top button (CC 91..96) & pad presses
+            if let Ok(midi_in) = MidiInput::new("zcode_launchpad_in") {
+                if let Some(in_port) = midi_in.ports().get(0) {
+                    let in_conn = midi_in.connect(in_port, "launchpad_in", |_stamp, message, _| {
+                        if message.len() >= 3 {
+                            let status = message[0];
+                            let note_or_cc = message[1];
+                            let val = message[2];
+                            if status == 0xB0 && val > 0 { // Control Change button pressed
+                                println!("[MIDI IN] Control Change CC {} pressed", note_or_cc);
+                            }
+                        }
+                    }, ()).ok();
+                    self.in_conn = in_conn;
+                }
+            }
+
             self.enter_programmer_mode();
-            println!("[MIDI] Connected and switched to Programmer Mode.");
+            println!("[MIDI] Connected input/output and switched to Programmer Mode.");
             Ok(())
         } else {
             println!("[MIDI] No Launchpad device found. Falling back to virtual mode.");
