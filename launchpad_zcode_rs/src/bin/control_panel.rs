@@ -7,7 +7,7 @@ use warp::Filter;
 
 use launchpad_zcode_rs::midi::LaunchpadMiniMK3;
 use launchpad_zcode_rs::engine::{LaunchpadEngine, TaskState, AppTarget};
-use launchpad_zcode_rs::microscope_memory::{MicroscopeMemoryStore, MemoryEntry};
+use launchpad_zcode_rs::microscope_memory::MicroscopeMemoryStore;
 
 #[derive(Serialize, Deserialize, Clone)]
 struct StateResponse {
@@ -39,12 +39,28 @@ struct SpeakRequest {
 #[derive(Deserialize)]
 struct ChatRequest {
     message: String,
+    attachment: Option<String>,
+    file_name: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
 struct ChatResponse {
     reply: String,
+    speaker: String,
     memory_saved_bincode: bool,
+}
+
+#[derive(Deserialize)]
+struct UploadRequest {
+    file_name: String,
+    file_data_base64: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct UploadResponse {
+    status: String,
+    file_name: String,
+    reply: String,
 }
 
 #[derive(Deserialize)]
@@ -57,19 +73,19 @@ struct SettingsRequest {
     _autostart: bool,
 }
 
-const MANIFEST_JSON: &str = r##"{"short_name":"HOPE PWA","name":"HOPE CODE Mobile Virtual Launchpad, Flash & Push Notifications","start_url":"/","background_color":"#121214","theme_color":"#00e676","display":"standalone"}"##;
+const MANIFEST_JSON: &str = r##"{"short_name":"HOPE CODE PWA","name":"HOPE CODE AMOLED PWA Chat & Launchpad Control","start_url":"/","background_color":"#000000","theme_color":"#00e676","display":"standalone"}"##;
 
 const SW_JS: &str = r#"
 self.addEventListener('push', function(event) {
-    const data = event.data ? event.data.text() : 'Üzenet érkezett Jules-tól!';
+    const data = event.data ? event.data.text() : 'Üzenet érkezett Hope-tól!';
     const options = {
         body: data,
         icon: '/icon.png',
         badge: '/icon.png',
-        vibrate: [100, 50, 100]
+        vibrate: [100, 50, 100, 50, 200]
     };
     event.waitUntil(
-        self.registration.showNotification('Jules AI Értesítés (HOPE CODE)', options)
+        self.registration.showNotification('HOPE CODE Értesítés (Hope AI)', options)
     );
 });
 "#;
@@ -81,86 +97,246 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#00e676">
-    <title>HOPE CODE iPhone PWA, Persistent Chat, Flash & Haptic 🎛️🗣️📱⚡</title>
+    <title>HOPE CODE — AMOLED Black Chat & Launchpad Studio</title>
     <style>
         :root {
-            --bg: #121214;
-            --card-bg: #1e1e24;
-            --accent: #00e676;
-            --accent-dim: #00a152;
-            --text: #e0e0e0;
-            --border: #33333e;
+            --bg: #000000;
+            --card-bg: #0a0a0c;
+            --card-border: #1a1a24;
+            --accent-green: #00e676;
+            --accent-green-dim: #00a152;
+            --accent-cyan: #00e5ff;
+            --accent-cyan-dim: #00b0ff;
+            --text-main: #f0f0f5;
+            --text-sub: #a0a0b0;
+            --user-bubble: #0f2b1d;
+            --agent-bubble: #14141f;
         }
+        * { box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg);
-            color: var(--text);
+            color: var(--text-main);
             margin: 0;
-            padding: 15px;
+            padding: 12px;
             user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
         .container {
-            max-width: 1000px;
+            max-width: 950px;
             margin: 0 auto;
         }
         header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 2px solid var(--border);
+            border-bottom: 1px solid var(--card-border);
             padding-bottom: 12px;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
         }
-        h1 { margin: 0; font-size: 1.4rem; color: #fff; }
+        h1 {
+            margin: 0;
+            font-size: 1.3rem;
+            background: linear-gradient(90deg, #00e676, #00e5ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 800;
+        }
+        .status-badge {
+            font-size: 0.8rem;
+            color: var(--accent-green);
+            background: #003319;
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1px solid var(--accent-green-dim);
+        }
         .tabs {
             display: flex;
             gap: 8px;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             overflow-x: auto;
+            padding-bottom: 4px;
         }
         .tab-btn {
             background: var(--card-bg);
-            border: 1px solid var(--border);
-            color: #aaa;
+            border: 1px solid var(--card-border);
+            color: var(--text-sub);
             padding: 8px 14px;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
-            font-weight: bold;
+            font-weight: 600;
             white-space: nowrap;
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
         }
         .tab-btn.active, .tab-btn:hover {
-            background: var(--accent);
+            background: var(--accent-green);
             color: #000;
-            border-color: var(--accent);
+            border-color: var(--accent-green);
+            box-shadow: 0 0 12px rgba(0, 230, 118, 0.4);
         }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         .card {
             background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: 8px;
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
             padding: 15px;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
         }
 
+        /* AMOLED Chat UI Styles */
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 480px;
+            background: #030305;
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .chat-header-bar {
+            padding: 10px 15px;
+            background: #08080c;
+            border-bottom: 1px solid var(--card-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .chat-search-input {
+            width: 180px;
+            padding: 6px 10px;
+            background: #101015;
+            border: 1px solid var(--card-border);
+            color: #fff;
+            border-radius: 6px;
+            font-size: 0.8rem;
+        }
+        .chat-history {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .msg-row {
+            display: flex;
+            flex-direction: column;
+            max-width: 85%;
+        }
+        .msg-row.user { align-self: flex-end; }
+        .msg-row.agent { align-self: flex-start; }
+        .msg-header {
+            font-size: 0.75rem;
+            color: var(--text-sub);
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .msg-bubble {
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            line-height: 1.45;
+            word-break: break-word;
+        }
+        .msg-row.user .msg-bubble {
+            background: var(--user-bubble);
+            color: #ffffff;
+            border: 1px solid var(--accent-green-dim);
+            border-bottom-right-radius: 2px;
+            box-shadow: 0 0 10px rgba(0,230,118,0.15);
+        }
+        .msg-row.agent .msg-bubble {
+            background: var(--agent-bubble);
+            color: #f0f0f5;
+            border: 1px solid var(--accent-cyan-dim);
+            border-bottom-left-radius: 2px;
+            box-shadow: 0 0 10px rgba(0,229,255,0.15);
+        }
+        .code-block {
+            background: #000000;
+            border: 1px solid #1a2a20;
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin: 8px 0;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.85rem;
+            color: #00e676;
+            position: relative;
+            white-space: pre-wrap;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: #111;
+            border: 1px solid var(--accent-green-dim);
+            color: #fff;
+            padding: 2px 8px;
+            font-size: 0.7rem;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .chat-input-bar {
+            padding: 10px;
+            background: #08080c;
+            border-top: 1px solid var(--card-border);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .input-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .attachment-preview {
+            font-size: 0.8rem;
+            color: var(--accent-cyan);
+            background: #002233;
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: none;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 8px 14px;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            color: #fff;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-green { background: var(--accent-green); color: #000; border: none; }
+        .btn-cyan { background: var(--accent-cyan); color: #000; border: none; }
+
+        /* Voice Call Orb */
         .live-voice-card {
             text-align: center;
-            padding: 25px;
-            background: radial-gradient(circle at center, #1b382b 0%, #1e1e24 70%);
-            border: 2px solid var(--accent-dim);
+            padding: 30px;
+            background: radial-gradient(circle at center, #001a0f 0%, #050508 80%);
+            border: 1px solid var(--accent-green-dim);
             border-radius: 12px;
         }
         .live-mic-orb {
-            width: 100px;
-            height: 100px;
+            width: 90px;
+            height: 90px;
             border-radius: 50%;
-            background: var(--accent);
+            background: var(--accent-green);
             border: none;
             color: #000;
-            font-size: 2.5rem;
+            font-size: 2.2rem;
             cursor: pointer;
-            box-shadow: 0 0 30px rgba(0, 230, 118, 0.5);
-            transition: all 0.3s ease;
+            box-shadow: 0 0 30px rgba(0, 230, 118, 0.4);
             margin: 15px auto;
             display: flex;
             align-items: center;
@@ -173,55 +349,16 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             animation: orbPulse 1.2s infinite;
         }
         @keyframes orbPulse {
-            0% { transform: scale(1); box-shadow: 0 0 20px #ff1744; }
-            50% { transform: scale(1.12); box-shadow: 0 0 45px #ff1744; }
-            100% { transform: scale(1); box-shadow: 0 0 20px #ff1744; }
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
         }
 
-        .chat-history {
-            background: #0a0a0c;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            height: 280px;
-            padding: 12px;
-            overflow-y: auto;
-            margin-bottom: 12px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        .msg {
-            padding: 8px 12px;
-            border-radius: 6px;
-            max-width: 80%;
-            font-size: 0.95rem;
-        }
-        .msg.user { background: #1b382b; color: #00e676; align-self: flex-end; border: 1px solid var(--accent-dim); }
-        .msg.agent { background: #282835; color: #fff; align-self: flex-start; border: 1px solid var(--border); }
-
-        .app-selector-bar {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-        .app-card {
-            flex: 1;
-            background: #252530;
-            border: 2px solid var(--border);
-            border-radius: 8px;
-            padding: 10px;
-            text-align: center;
-            cursor: pointer;
-        }
-        .app-card.active {
-            border-color: var(--accent);
-            background: #1b382b;
-        }
+        /* Virtual Launchpad Grid */
         .grid-layout {
             display: flex;
             gap: 15px;
             justify-content: center;
-            align-items: flex-start;
         }
         .grid-container {
             display: grid;
@@ -229,108 +366,97 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             gap: 6px;
             width: 100%;
             max-width: 360px;
-            background: #09090b;
+            background: #000;
             padding: 10px;
             border-radius: 10px;
-            border: 2px solid var(--border);
+            border: 1px solid var(--card-border);
         }
-        .side-column {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            padding: 10px 0;
-        }
+        .side-column { display: flex; flex-direction: column; gap: 6px; }
         .side-btn {
-            width: 38px;
-            height: 38px;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
-            background: #333;
-            border: 2px solid var(--border);
+            background: #15151f;
+            border: 1px solid var(--card-border);
             color: #fff;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             font-weight: bold;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
         }
-        .side-btn.active-view { background: #00e676; color: #000; box-shadow: 0 0 10px #00e676; }
-
+        .side-btn.active-view { background: var(--accent-green); color: #000; box-shadow: 0 0 10px var(--accent-green); }
         .pad {
             aspect-ratio: 1;
-            background: #222;
+            background: #111;
             border-radius: 6px;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 0.75rem;
             font-weight: bold;
-            color: rgba(255,255,255,0.4);
+            color: #555;
             cursor: pointer;
         }
-        .pad.pending { background: #333; color: #888; }
+        .pad.pending { background: #1a1a20; color: #777; }
         .pad.active { background: #ffd600; color: #000; box-shadow: 0 0 12px #ffd600; }
         .pad.success { background: #00e676; color: #000; box-shadow: 0 0 12px #00e676; }
         .pad.error { background: #ff1744; color: #fff; box-shadow: 0 0 12px #ff1744; }
 
-        .controls-row {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        select, button, input, textarea {
-            padding: 8px 12px;
-            background: #2a2a35;
-            border: 1px solid var(--border);
+        input[type="text"], textarea {
+            background: #09090d;
+            border: 1px solid var(--card-border);
             color: #fff;
-            border-radius: 4px;
-            font-size: 0.95rem;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.9rem;
         }
-        textarea { width: 100%; height: 80px; }
-        button.btn-action { background: var(--accent); color: #000; font-weight: bold; cursor: pointer; border: none; }
-        pre { background: #0a0a0c; padding: 12px; border-radius: 6px; border: 1px solid var(--border); overflow-x: auto; color: #00e676; font-size: 0.85rem; }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>📱 HOPE CODE iPhone PWA & Perzisztens Jules Chat</h1>
-            <div><span style="color: #00e676;">● Microscope Bincode (Nincs Session!)</span></div>
+            <h1>⚡ HOPE CODE — AMOLED PWA Studio</h1>
+            <div class="status-badge">● Hope AI (Microscope Bincode)</div>
         </header>
 
-        <div class="app-selector-bar">
-            <div class="app-card active" id="app-card-hopecode" onclick="switchApp('hopecode')">
-                <h4 style="margin:0;">HOPE CODE</h4>
-            </div>
-            <div class="app-card" id="app-card-claude" onclick="switchApp('claude_code')">
-                <h4 style="margin:0;">Claude Code</h4>
-            </div>
-            <div class="app-card" id="app-card-codex" onclick="switchApp('codex')">
-                <h4 style="margin:0;">OpenAI Codex</h4>
-            </div>
-        </div>
-
         <div class="tabs">
-            <button class="tab-btn active" onclick="showTab('jules-chat')">🤖 Perzisztens Jules Chat & Bincode Memória</button>
+            <button class="tab-btn active" onclick="showTab('hope-chat')">💬 AMOLED Chat & Fájlok</button>
             <button class="tab-btn" onclick="showTab('live-voice')">🎙️ Élő Voice Call</button>
             <button class="tab-btn" onclick="showTab('iphone-hardware')">⚡ iPhone Flash & Haptic</button>
-            <button class="tab-btn" onclick="showTab('virtual-midi')">📱 Mobil Virtuális Launchpad</button>
+            <button class="tab-btn" onclick="showTab('virtual-midi')">📱 Mobil Launchpad</button>
             <button class="tab-btn" onclick="showTab('tts-noemi')">🗣️ Noémi Felolvasó & EQ</button>
         </div>
 
-        <!-- 1. Perzisztens Chat & Microscope Bincode Memory Tab -->
-        <div id="jules-chat" class="tab-content active">
+        <!-- 1. AMOLED Chat & File Upload Tab -->
+        <div id="hope-chat" class="tab-content active">
             <div class="card">
-                <h3>💬 Folyamatos Perzisztens Beszélgetés Jules-szal</h3>
-                <p style="font-size:0.85rem; color:#aaa;">Nincsenek sessionök! A teljes beszélgetésünk mindig megmarad a <code>microscope_memory.bin</code> bináris bincode memóriában.</p>
+                <div class="chat-container">
+                    <div class="chat-header-bar">
+                        <div style="font-weight:bold; color:var(--accent-green);">HOPE CODE / Zcode Chat (Beszélő: Hope)</div>
+                        <div style="display:flex; gap:8px;">
+                            <input type="text" id="chatSearch" class="chat-search-input" placeholder="🔍 Keresés..." onkeyup="filterChat()">
+                            <button class="btn" style="padding:4px 8px; font-size:0.75rem;" onclick="exportChatHistory('txt')">TXT</button>
+                            <button class="btn" style="padding:4px 8px; font-size:0.75rem;" onclick="exportChatHistory('json')">JSON</button>
+                        </div>
+                    </div>
 
-                <div class="chat-history" id="chatHistory"></div>
+                    <div class="chat-history" id="chatHistory"></div>
 
-                <div class="controls-row">
-                    <input type="text" id="chatInput" placeholder="Írj Jules-nak..." style="flex:1;" onkeypress="if(event.key==='Enter') sendChatMessage()">
-                    <button class="btn-action" onclick="sendChatMessage()">Küldés</button>
+                    <div class="chat-input-bar">
+                        <div class="attachment-preview" id="attachmentPreview">
+                            <span id="attachmentName">file.txt</span>
+                            <button style="background:none; border:none; color:#ff1744; cursor:pointer;" onclick="clearAttachment()">✕</button>
+                        </div>
+                        <div class="input-row">
+                            <input type="file" id="fileInput" style="display:none;" onchange="handleFileSelected(event)">
+                            <button class="btn" onclick="document.getElementById('fileInput').click()" title="Fájl csatolása">📎</button>
+                            <button class="btn" id="recordAudioBtn" onclick="toggleAudioRecording()" title="Hangüzenet rögzítése">🎤</button>
+                            <input type="text" id="chatInput" placeholder="Írj Hope-nak..." style="flex:1;" onkeypress="if(event.key==='Enter') sendChatMessage()">
+                            <button class="btn btn-green" onclick="sendChatMessage()">Küldés</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -338,33 +464,33 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
         <!-- 2. Live Voice Call Tab -->
         <div id="live-voice" class="tab-content">
             <div class="card live-voice-card">
-                <h2>🎙️ Élő Voice-to-Voice Hívás Jules-szal</h2>
-                <p>Kattints a gömbre az élő folyamatos hanghívás indításához!</p>
+                <h2>🎙️ Élő Voice-to-Voice Hívás Hope-pal</h2>
+                <p style="color:var(--text-sub);">Folyamatos kétirányú párbeszéd magyar nyelven</p>
                 <button class="live-mic-orb" id="liveOrb" onclick="toggleLiveCall()">🎙️</button>
-                <h3 id="liveCallStatus" style="color: #00e676; margin-top: 15px;">Hívás Inaktív - Kattints az indításhoz!</h3>
+                <h3 id="liveCallStatus" style="color: var(--accent-green); margin-top: 15px;">Hívás Inaktív - Kattints az indításhoz!</h3>
                 <p id="liveTranscript" style="font-size: 1.1rem; color: #fff; min-height: 30px; font-weight: bold;"></p>
             </div>
         </div>
 
-        <!-- 3. iPhone Flash & Haptic Hardware Control Tab -->
+        <!-- 3. iPhone Flash & Haptic Tab -->
         <div id="iphone-hardware" class="tab-content">
             <div class="card">
-                <h3>⚡ iPhone Vakufény (Flash/Torch) & Haptikus Rezgés Vezérlés</h3>
-                <div class="controls-row">
-                    <button class="btn-action" onclick="toggleTorch(true)">💡 iPhone Vaku BE</button>
-                    <button class="btn-action" style="background:#ff1744; color:#fff;" onclick="toggleTorch(false)">🚫 iPhone Vaku KI</button>
-                    <button class="btn-action" style="background:#ffd600; color:#000;" onclick="triggerHaptic()">📳 Haptikus Rezgés Teszt</button>
-                    <button class="btn-action" style="background:#00b0ff; color:#fff;" onclick="enablePushNotifications()">🔔 iOS Push Értesítések Engedélyezése</button>
+                <h3>⚡ Hardver Vezérlés (iPhone Flash, Haptika & Push)</h3>
+                <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+                    <button class="btn btn-green" onclick="toggleTorch(true)">💡 Vaku BE</button>
+                    <button class="btn" style="background:#ff1744; color:#fff;" onclick="toggleTorch(false)">🚫 Vaku KI</button>
+                    <button class="btn" style="background:#ffd600; color:#000;" onclick="triggerHaptic()">📳 Haptikus Rezgés</button>
+                    <button class="btn btn-cyan" onclick="enablePushNotifications()">🔔 iOS Push Értesítések</button>
                 </div>
-                <p id="hardwareStatus" style="margin-top:15px; color:#00e676; font-weight:bold;"></p>
+                <p id="hardwareStatus" style="margin-top:12px; color:var(--accent-green); font-weight:bold;"></p>
             </div>
         </div>
 
-        <!-- 4. Mobil Virtuális Launchpad Tab -->
+        <!-- 4. Virtual Launchpad Tab -->
         <div id="virtual-midi" class="tab-content">
             <div class="card">
-                <h3>Mobil Kijelző Mátrix</h3>
-                <div class="grid-layout">
+                <h3>Virtuális Launchpad Matrix</h3>
+                <div class="grid-layout" style="margin-top:10px;">
                     <div class="grid-container" id="padGrid"></div>
                     <div class="side-column">
                         <button class="side-btn active-view" id="side-hopecode" onclick="switchApp('hopecode')">HC</button>
@@ -375,13 +501,13 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             </div>
         </div>
 
-        <!-- 5. Noémi Felolvasó & EQ Tab -->
+        <!-- 5. Edge-TTS Noémi & EQ Tab -->
         <div id="tts-noemi" class="tab-content">
             <div class="card">
-                <h3>Edge-TTS Noémi Felolvasó & EQ Sync</h3>
-                <textarea id="ttsTextInput" placeholder="Írd ide a szöveget..."></textarea>
-                <div class="controls-row">
-                    <button class="btn-action" onclick="speakText()">Felolvasás & Launchpad EQ Szinkron</button>
+                <h3>Edge-TTS Noémi Felolvasó & Launchpad EQ Sync</h3>
+                <textarea id="ttsTextInput" style="width:100%; height:80px; margin-top:10px;" placeholder="Írd ide a szöveget..."></textarea>
+                <div style="margin-top:10px;">
+                    <button class="btn btn-green" onclick="speakText()">Felolvasás & EQ Animáció</button>
                 </div>
             </div>
         </div>
@@ -392,9 +518,41 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
         let liveRecognition = null;
         let isLiveCallActive = false;
         let videoTrack = null;
+        let currentAttachment = null;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isRecordingAudio = false;
 
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js').catch(()=>{});
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSoundEffect(type) {
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                if (type === 'send') {
+                    osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.1);
+                    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.1);
+                } else if (type === 'receive') {
+                    osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.15);
+                    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.15);
+                }
+            } catch(e) {}
+        }
+
+        function triggerHaptic() {
+            if (navigator.vibrate) {
+                navigator.vibrate([80, 40, 120]);
+            }
         }
 
         function showTab(tabId) {
@@ -402,6 +560,179 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
             document.getElementById(tabId).classList.add('active');
             event.target.classList.add('active');
+        }
+
+        function formatMessageText(text) {
+            let formatted = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            formatted = formatted.replace(/```([\s\S]*?)```/g, function(match, code) {
+                const id = 'code-' + Math.random().toString(36).substr(2, 9);
+                return '<div class="code-block" id="' + id + '"><button class="copy-btn" onclick="copyCode(\'' + id + '\')">Másolás</button>' + code + '</div>';
+            });
+            return formatted;
+        }
+
+        function copyCode(elementId) {
+            const block = document.getElementById(elementId);
+            if (!block) return;
+            const codeText = block.innerText.replace('Másolás', '').trim();
+            navigator.clipboard.writeText(codeText);
+            triggerHaptic();
+            alert('Kód a vágólapra másolva!');
+        }
+
+        function handleFileSelected(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                currentAttachment = {
+                    file_name: file.name,
+                    file_data_base64: e.target.result
+                };
+                document.getElementById('attachmentName').innerText = '📄 Csatolva: ' + file.name;
+                document.getElementById('attachmentPreview').style.display = 'flex';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function clearAttachment() {
+            currentAttachment = null;
+            document.getElementById('fileInput').value = '';
+            document.getElementById('attachmentPreview').style.display = 'none';
+        }
+
+        async function toggleAudioRecording() {
+            const btn = document.getElementById('recordAudioBtn');
+            if (!isRecordingAudio) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
+                    mediaRecorder.onstop = () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            currentAttachment = {
+                                file_name: 'voice_message.wav',
+                                file_data_base64: reader.result
+                            };
+                            document.getElementById('attachmentName').innerText = '🎙️ Hangüzenet rögzítve';
+                            document.getElementById('attachmentPreview').style.display = 'flex';
+                        };
+                        reader.readAsDataURL(audioBlob);
+                    };
+                    mediaRecorder.start();
+                    isRecordingAudio = true;
+                    btn.style.background = '#ff1744';
+                    btn.style.color = '#fff';
+                    triggerHaptic();
+                } catch(e) {
+                    alert('Mikrofon nem érhető el!');
+                }
+            } else {
+                if (mediaRecorder) {
+                    mediaRecorder.stop();
+                }
+                isRecordingAudio = false;
+                btn.style.background = 'var(--card-bg)';
+                btn.style.color = '#fff';
+                triggerHaptic();
+            }
+        }
+
+        async function sendChatMessage() {
+            playSoundEffect('send');
+            triggerHaptic();
+            const input = document.getElementById('chatInput');
+            const history = document.getElementById('chatHistory');
+            const msg = input.value.trim();
+            if (!msg && !currentAttachment) return;
+
+            const userRow = document.createElement('div');
+            userRow.className = 'msg-row user';
+            let attachHtml = currentAttachment ? '<br><small>📎 ' + currentAttachment.file_name + '</small>' : '';
+            userRow.innerHTML = '<div class="msg-header"><span>Én</span><span>' + new Date().toLocaleTimeString() + '</span></div><div class="msg-bubble">' + formatMessageText(msg) + attachHtml + '</div>';
+            history.appendChild(userRow);
+
+            input.value = '';
+            const attachmentToSend = currentAttachment;
+            clearAttachment();
+            history.scrollTop = history.scrollHeight;
+
+            try {
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        message: msg,
+                        attachment: attachmentToSend ? attachmentToSend.file_data_base64 : null,
+                        file_name: attachmentToSend ? attachmentToSend.file_name : null
+                    })
+                });
+                const data = await res.json();
+                playSoundEffect('receive');
+
+                const agentRow = document.createElement('div');
+                agentRow.className = 'msg-row agent';
+                agentRow.innerHTML = '<div class="msg-header"><span>' + data.speaker + '</span><span>' + new Date().toLocaleTimeString() + ' (💾 bincode)</span></div><div class="msg-bubble">' + formatMessageText(data.reply) + '</div>';
+                history.appendChild(agentRow);
+                history.scrollTop = history.scrollHeight;
+
+                await fetch('/api/speak', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ text: data.reply })
+                });
+            } catch(e) {}
+        }
+
+        async function loadPersistentChatHistory() {
+            try {
+                const res = await fetch('/api/chat_history');
+                const history = await res.json();
+                const container = document.getElementById('chatHistory');
+                container.innerHTML = '';
+                history.forEach(m => {
+                    const row = document.createElement('div');
+                    row.className = m.speaker === 'Hope' || m.speaker === 'Jules' || m.speaker.includes('Hope') ? 'msg-row agent' : 'msg-row user';
+                    row.innerHTML = '<div class="msg-header"><span>' + m.speaker + '</span><span>' + m.category + '</span></div><div class="msg-bubble">' + formatMessageText(m.content) + '</div>';
+                    container.appendChild(row);
+                });
+                container.scrollTop = container.scrollHeight;
+            } catch(e) {}
+        }
+
+        function filterChat() {
+            const query = document.getElementById('chatSearch').value.toLowerCase();
+            const rows = document.querySelectorAll('.msg-row');
+            rows.forEach(row => {
+                const text = row.innerText.toLowerCase();
+                row.style.display = text.includes(query) ? 'flex' : 'none';
+            });
+        }
+
+        async function exportChatHistory(format) {
+            try {
+                const res = await fetch('/api/chat_history');
+                const history = await res.json();
+                let dataStr = "";
+                if (format === 'json') {
+                    dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(history, null, 2));
+                } else {
+                    let txt = "HOPE CODE Beszélgetés Előzmények:\n\n";
+                    history.forEach(m => {
+                        txt += "[" + m.speaker + "]: " + m.content + "\n";
+                    });
+                    dataStr = "data:text/plain;charset=utf-8," + encodeURIComponent(txt);
+                }
+                const downloadAnchor = document.createElement('a');
+                downloadAnchor.setAttribute("href", dataStr);
+                downloadAnchor.setAttribute("download", "hopecode_chat_export." + format);
+                document.body.appendChild(downloadAnchor);
+                downloadAnchor.click();
+                downloadAnchor.remove();
+            } catch(e) {}
         }
 
         async function switchApp(appName) {
@@ -467,7 +798,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
                             await videoTrack.applyConstraints({ advanced: [{ torch: true }] });
                             status.innerText = '💡 iPhone vaku BEKAPCSOLVA!';
                         } else {
-                            status.innerText = '💡 Vaku szimuláció aktív (Torch nem támogatott ezen az eszközön).';
+                            status.innerText = '💡 Vaku szimuláció aktív.';
                         }
                     } else {
                         if (videoTrack) {
@@ -495,7 +826,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
                             headers: {'Content-Type': 'application/json'},
                             body: JSON.stringify({ _endpoint: 'iphone-pwa' })
                         });
-                        status.innerText = '🔔 iOS Push Értesítések sikeresen engedélyezve!';
+                        status.innerText = '🔔 iOS Push Értesítések engedélyezve!';
                     } catch(e) {
                         status.innerText = '🔔 Push értesítések engedélyezve.';
                     }
@@ -503,7 +834,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
                     status.innerText = '⚠️ Értesítések elutasítva.';
                 }
             } else {
-                status.innerText = 'ℹ️ Web Push nem támogatott ezen a böngészőn.';
+                status.innerText = 'ℹ️ Web Push nem támogatott.';
             }
         }
 
@@ -515,7 +846,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
             if (!isLiveCallActive) {
                 isLiveCallActive = true;
                 orb.classList.add('active-call');
-                status.innerText = '🎙️ Élő Hívás Aktív - Jules Hallgat...';
+                status.innerText = '🎙️ Élő Hívás Aktív - Hope Hallgat...';
                 triggerHaptic();
 
                 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -541,7 +872,7 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
 
                     liveRecognition.start();
                 } else {
-                    transcript.innerText = 'Beszédmentes felolvasás engedélyezve (Web Speech API szimuláció).';
+                    transcript.innerText = 'Beszédmentes felolvasás engedélyezve.';
                 }
             } else {
                 isLiveCallActive = false;
@@ -556,70 +887,12 @@ const HTML_INDEX: &str = r##"<!DOCTYPE html>
 
         async function speakText() {
             triggerHaptic();
-            const text = document.getElementById('ttsTextInput').value.trim() || "Szia Máté! A Novation Launchpad Mini MK3 készen áll a HOPE CODE feladatok animálására.";
+            const text = document.getElementById('ttsTextInput').value.trim() || "Szia Máté! A Novation Launchpad Mini MK3 és a HOPE CODE felület készen áll.";
             try {
                 await fetch('/api/speak', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ text: text })
-                });
-            } catch(e) {}
-        }
-
-        async function loadPersistentChatHistory() {
-            try {
-                const res = await fetch('/api/chat_history');
-                const history = await res.json();
-                const container = document.getElementById('chatHistory');
-                container.innerHTML = '';
-                history.forEach(m => {
-                    const div = document.createElement('div');
-                    div.className = m.speaker === 'Jules' || m.speaker.includes('Jules') ? 'msg agent' : 'msg user';
-                    div.innerHTML = '<strong>' + m.speaker + ':</strong> ' + m.content;
-                    container.appendChild(div);
-                });
-                container.scrollTop = container.scrollHeight;
-            } catch(e) {}
-        }
-
-        function triggerHaptic() {
-            if (navigator.vibrate) {
-                navigator.vibrate([100, 50, 100, 50, 200]);
-            }
-        }
-
-        async function sendChatMessage() {
-            triggerHaptic();
-            const input = document.getElementById('chatInput');
-            const history = document.getElementById('chatHistory');
-            const msg = input.value.trim();
-            if (!msg) return;
-
-            const userDiv = document.createElement('div');
-            userDiv.className = 'msg user';
-            userDiv.innerHTML = '<strong>Én:</strong> ' + msg;
-            history.appendChild(userDiv);
-            input.value = '';
-            history.scrollTop = history.scrollHeight;
-
-            try {
-                const res = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ message: msg })
-                });
-                const data = await res.json();
-
-                const agentDiv = document.createElement('div');
-                agentDiv.className = 'msg agent';
-                agentDiv.innerHTML = '<strong>Jules:</strong> ' + data.reply + ' <span style="font-size:0.75rem; color:#00e676;">(💾 bincode)</span>';
-                history.appendChild(agentDiv);
-                history.scrollTop = history.scrollHeight;
-
-                await fetch('/api/speak', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ text: data.reply })
                 });
             } catch(e) {}
         }
@@ -668,11 +941,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             {
                 let mut mem = auto_memory.lock().unwrap();
                 let task_msg = format!("Autonóm háttérvizsgálat #{} elvégezve: Kód szekvencia stabil.", loop_count);
-                mem.add_memory("Jules Autonóm Agent", &task_msg, "autonomous_task");
+                mem.add_memory("Hope Autonóm Agent", &task_msg, "autonomous_task");
                 let _ = mem.save_bincode("microscope_memory.bin");
             }
 
-            auto_engine.animate_operation_with_text("pulse_beacon", "dissolve", 1.5, "JULES ACTIVE");
+            auto_engine.animate_operation_with_text("pulse_beacon", "dissolve", 1.5, "HOPE ACTIVE");
         }
     });
 
@@ -719,12 +992,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .and(warp::body::json())
         .map(move |req: ChatRequest| {
             let user_msg = req.message;
-            let reply = format!("Vettem a feladatot, Máté Róbert! Megkezdtem a feldolgozást: \"{}\".", user_msg);
+            let file_info = if let Some(fname) = req.file_name {
+                format!(" [Csatolt fájl: {}]", fname)
+            } else {
+                "".to_string()
+            };
+
+            let reply = format!("Vettem a feladatot, Máté Róbert! Megkezdtem a HOPE CODE feldolgozást: \"{}\"{}.", user_msg, file_info);
 
             {
                 let mut mem = mem_chat_store.lock().unwrap();
-                mem.add_memory("Máté Róbert", &user_msg, "user_prompt");
-                mem.add_memory("Jules", &reply, "agent_response");
+                mem.add_memory("Máté Róbert", &format!("{}{}", user_msg, file_info), "user_prompt");
+                mem.add_memory("Hope", &reply, "agent_response");
                 let _ = mem.save_bincode("microscope_memory.bin");
             }
 
@@ -732,7 +1011,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let resp = ChatResponse {
                 reply,
+                speaker: "Hope".to_string(),
                 memory_saved_bincode: true,
+            };
+            warp::reply::json(&resp)
+        });
+
+    let mem_upload_store = Arc::clone(&memory_store);
+    let engine_upload = Arc::clone(&engine);
+    let api_upload = warp::path!("api" / "upload")
+        .and(warp::post())
+        .and(warp::body::json())
+        .map(move |req: UploadRequest| {
+            let reply = format!("A csatolt fájl ('{}') sikeresen beolvasva a HOPE CODE elemzéshez.", req.file_name);
+            {
+                let mut mem = mem_upload_store.lock().unwrap();
+                mem.add_memory("Máté Róbert", &format!("[Fájl Feltöltve]: {}", req.file_name), "file_upload");
+                mem.add_memory("Hope", &reply, "agent_response");
+                let _ = mem.save_bincode("microscope_memory.bin");
+            }
+
+            engine_upload.animate_operation_with_text("plasma_wave", "dissolve", 1.5, "UPLOAD OK");
+
+            let resp = UploadResponse {
+                status: "success".to_string(),
+                file_name: req.file_name,
+                reply,
             };
             warp::reply::json(&resp)
         });
@@ -807,6 +1111,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or(api_chat_history)
         .or(api_state)
         .or(api_chat)
+        .or(api_upload)
         .or(api_push)
         .or(api_trigger)
         .or(api_speak)
