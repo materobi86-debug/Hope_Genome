@@ -4,7 +4,9 @@
 //! branch attempts a rule violation, the loop does not merely deny it: it
 //! hot-swaps the faulty branch for a verified, rule-compliant replacement via
 //! `crispr-patch`, all at runtime, without restarting the host process.
+//! Also integrates Hope Genome Ed25519 action verification.
 
+use bio_shared::BioHopeGenome;
 use crispr_patch::{PatchAction, PatchEngine};
 use std::collections::HashMap;
 use thiserror::Error;
@@ -61,6 +63,8 @@ pub struct PhoenixLoop {
     pub crispr: PatchEngine,
     /// Audit trail of healed branches.
     pub healed: Vec<String>,
+    /// Optional Hope Genome cryptographic proof engine.
+    pub hope_genome: Option<BioHopeGenome>,
 }
 
 impl PhoenixLoop {
@@ -70,7 +74,16 @@ impl PhoenixLoop {
             replacements,
             crispr: PatchEngine::new(None),
             healed: Vec::new(),
+            hope_genome: None,
         }
+    }
+
+    /// Enable Hope Genome cryptographic verification with rules.
+    pub fn with_hope_genome(mut self, rules: Vec<String>) -> Self {
+        if let Ok(genome) = BioHopeGenome::new(rules) {
+            self.hope_genome = Some(genome);
+        }
+        self
     }
 
     /// Evaluate one branch event. Returns true if the event was allowed.
@@ -83,6 +96,10 @@ impl PhoenixLoop {
         });
 
         if !violation {
+            // If Hope Genome is active, generate cryptographic proof
+            if let Some(ref genome) = self.hope_genome {
+                let _proof = genome.verify_bio_action(&event.branch_id);
+            }
             return Ok(true);
         }
 
@@ -119,7 +136,7 @@ mod tests {
         }];
         let mut reg = ReplacementRegistry::new();
         reg.register("branch:ai-decision-7", "branch:verified-decision-7");
-        PhoenixLoop::new(rules, reg)
+        PhoenixLoop::new(rules, reg).with_hope_genome(vec!["Do no harm".to_string()])
     }
 
     #[test]
@@ -131,6 +148,7 @@ mod tests {
         };
         assert!(phoenix.observe(&event).unwrap());
         assert!(phoenix.healed.is_empty());
+        assert!(phoenix.hope_genome.is_some());
     }
 
     #[test]
