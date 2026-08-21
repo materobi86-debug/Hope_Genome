@@ -33,13 +33,17 @@ def test_task_state_changes():
 
     engine.stop()
 
-def test_animation_trigger():
+@pytest.mark.parametrize("anim_type", [
+    "spinner", "scan", "success_ripple", "error_flash",
+    "rainbow_wave", "matrix_rain", "fireworks", "snake", "pulse_beacon"
+])
+def test_all_animations_trigger(anim_type):
     lp = LaunchpadMiniMK3(virtual=True)
     lp.connect()
     engine = LaunchpadEngine(lp)
 
-    engine.animate_operation(anim_type="spinner", duration=0.2)
-    time.sleep(0.3)
+    engine.animate_operation(anim_type=anim_type, duration=0.1)
+    time.sleep(0.2)
     assert engine._animating is False
 
     engine.stop()

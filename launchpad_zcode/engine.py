@@ -6,6 +6,7 @@ Renders task states on the 8x8 matrix and performs visual animations on operatio
 import time
 import threading
 import logging
+import random
 from typing import Dict, Optional, List, Tuple
 from .midi import LaunchpadMiniMK3
 from .config import (
@@ -16,7 +17,11 @@ from .config import (
     COLOR_GREEN_BRIGHT,
     COLOR_RED_BRIGHT,
     COLOR_CYAN,
+    COLOR_BLUE,
     COLOR_WHITE,
+    COLOR_MAGENTA,
+    COLOR_PURPLE,
+    COLOR_ORANGE,
     TASK_COLOR_PENDING,
     TASK_COLOR_ACTIVE,
     TASK_COLOR_SUCCESS,
@@ -45,7 +50,6 @@ class LaunchpadEngine:
         self.tasks: Dict[int, str] = {i: TaskState.PENDING for i in range(64)}
         self._lock = threading.Lock()
         self._animating = False
-        self._pulsing_thread = None
         self._running = True
 
         # Start background pulse thread for active tasks
@@ -104,7 +108,9 @@ class LaunchpadEngine:
     def animate_operation(self, anim_type: str = "spinner", duration: float = 0.8):
         """
         Trigger an operation animation on the Launchpad matrix.
-        Supported types: 'spinner', 'scan', 'success_ripple', 'error_flash'
+        Supported types:
+        'spinner', 'scan', 'success_ripple', 'error_flash',
+        'rainbow_wave', 'matrix_rain', 'fireworks', 'snake', 'pulse_beacon'
         """
         def _run_anim():
             self._animating = True
@@ -117,6 +123,16 @@ class LaunchpadEngine:
                     self._anim_ripple(COLOR_GREEN_BRIGHT, duration)
                 elif anim_type == "error_flash":
                     self._anim_flash(COLOR_RED_BRIGHT, duration)
+                elif anim_type == "rainbow_wave":
+                    self._anim_rainbow_wave(duration)
+                elif anim_type == "matrix_rain":
+                    self._anim_matrix_rain(duration)
+                elif anim_type == "fireworks":
+                    self._anim_fireworks(duration)
+                elif anim_type == "snake":
+                    self._anim_snake(duration)
+                elif anim_type == "pulse_beacon":
+                    self._anim_pulse_beacon(duration)
                 else:
                     self._anim_spinner(duration)
             finally:
@@ -184,3 +200,106 @@ class LaunchpadEngine:
             time.sleep(delay)
             self.lp.clear()
             time.sleep(delay)
+
+    def _anim_rainbow_wave(self, duration: float):
+        """Diagonal rainbow wave across the matrix."""
+        colors = [COLOR_RED_BRIGHT, COLOR_ORANGE, COLOR_YELLOW_BRIGHT, COLOR_GREEN_BRIGHT, COLOR_CYAN, COLOR_BLUE, COLOR_MAGENTA, COLOR_PURPLE]
+        start_time = time.time()
+        shift = 0
+        while time.time() - start_time < duration:
+            self.lp.clear()
+            for r in range(8):
+                for c in range(8):
+                    color_idx = (r + c + shift) % len(colors)
+                    self.lp.set_grid_pad(r, c, colors[color_idx])
+            shift += 1
+            time.sleep(0.08)
+
+    def _anim_matrix_rain(self, duration: float):
+        """Matrix digital rain effect with green falling drops."""
+        drops = [random.randint(-8, 0) for _ in range(8)]
+        start_time = time.time()
+        while time.time() - start_time < duration:
+            self.lp.clear()
+            for col in range(8):
+                head = drops[col]
+                if 0 <= head < 8:
+                    self.lp.set_grid_pad(head, col, COLOR_WHITE)  # Leading edge
+                if 0 <= head - 1 < 8:
+                    self.lp.set_grid_pad(head - 1, col, COLOR_GREEN_BRIGHT)
+                if 0 <= head - 2 < 8:
+                    self.lp.set_grid_pad(head - 2, col, COLOR_GREY_DIM)
+
+                drops[col] += 1
+                if drops[col] > 10:
+                    drops[col] = random.randint(-4, 0)
+            time.sleep(0.08)
+
+    def _anim_fireworks(self, duration: float):
+        """Random bursting colorful fireworks."""
+        start_time = time.time()
+        colors = [COLOR_CYAN, COLOR_MAGENTA, COLOR_YELLOW_BRIGHT, COLOR_GREEN_BRIGHT, COLOR_ORANGE]
+        while time.time() - start_time < duration:
+            center_r = random.randint(1, 6)
+            center_c = random.randint(1, 6)
+            color = random.choice(colors)
+
+            self.lp.clear()
+            self.lp.set_grid_pad(center_r, center_c, COLOR_WHITE)
+            time.sleep(0.05)
+
+            # Burst
+            for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]:
+                nr, nc = center_r + dr, center_c + dc
+                if 0 <= nr < 8 and 0 <= nc < 8:
+                    self.lp.set_grid_pad(nr, nc, color)
+            time.sleep(0.12)
+
+    def _anim_snake(self, duration: float):
+        """Spiral snake tracing the 8x8 matrix boundary inwards."""
+        path = []
+        top, bottom, left, right = 0, 7, 0, 7
+        while top <= bottom and left <= right:
+            for c in range(left, right + 1):
+                path.append((top, c))
+            top += 1
+            for r in range(top, bottom + 1):
+                path.append((r, right))
+            right -= 1
+            if top <= bottom:
+                for c in range(right, left - 1, -1):
+                    path.append((bottom, c))
+                bottom -= 1
+            if left <= right:
+                for r in range(bottom, top - 1, -1):
+                    path.append((r, left))
+                left += 1
+
+        start_time = time.time()
+        idx = 0
+        while time.time() - start_time < duration:
+            self.lp.clear()
+            for i in range(5):  # Snake length 5
+                p_idx = (idx - i) % len(path)
+                r, c = path[p_idx]
+                color = COLOR_MAGENTA if i == 0 else COLOR_PURPLE
+                self.lp.set_grid_pad(r, c, color)
+            idx += 1
+            time.sleep(0.04)
+
+    def _anim_pulse_beacon(self, duration: float):
+        """Beacons/waves pulsing from the 4 corners simultaneously."""
+        corners = [(0, 0), (0, 7), (7, 0), (7, 7)]
+        start_time = time.time()
+        step = 0
+        while time.time() - start_time < duration:
+            self.lp.clear()
+            color = COLOR_CYAN if step % 2 == 0 else COLOR_BLUE
+            for cr, cc in corners:
+                for dr in range(2):
+                    for dc in range(2):
+                        r = cr + dr if cr == 0 else cr - dr
+                        c = cc + dc if cc == 0 else cc - dc
+                        self.lp.set_grid_pad(r, c, color)
+            step += 1
+            time.sleep(0.1)

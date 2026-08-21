@@ -2,7 +2,7 @@
 CLI Notify Tool for Zcode Hook Integration.
 Called by Zcode event hooks to notify the Launchpad daemon.
 Usage:
-    zcode-launchpad-notify <event> [--task-id 0] [--anim spinner]
+    zcode-launchpad-notify <event> [--task-id 0] [--anim rainbow_wave]
 """
 
 import socket
@@ -36,7 +36,10 @@ def main():
     parser = argparse.ArgumentParser(description="Notify Zcode Launchpad Mini MK3 Daemon")
     parser.add_argument("event", help="Event type (think, command, task_start, task_success, task_error, reset)")
     parser.add_argument("--task-id", type=int, default=0, help="Task index (0..63)")
-    parser.add_argument("--anim", type=str, default=None, choices=["spinner", "scan", "success_ripple", "error_flash", "none"], help="Animation type")
+    parser.add_argument("--anim", type=str, default=None,
+                        choices=["spinner", "scan", "success_ripple", "error_flash",
+                                 "rainbow_wave", "matrix_rain", "fireworks", "snake", "pulse_beacon", "none"],
+                        help="Animation type")
     parser.add_argument("--host", default=DEFAULT_HOST, help="Daemon host")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Daemon port")
 
