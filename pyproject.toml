@@ -1,117 +1,21 @@
 [build-system]
-requires = ["maturin>=1.0,<2.0"]
-build-backend = "maturin"
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
 
 [project]
-name = "hope-genome"
-version = "2.5.0"
-description = "Enterprise AI Safety: TEE, Post-Quantum Crypto, FHE, Mechanistic Interpretability - Quantum-Ready, Hardware-Secured"
-authors = [
-    {name = "Máté Róbert", email = "stratosoiteam@gmail.com"}
-]
+name = "zcode-launchpad"
+version = "0.1.0"
+description = "Novation Launchpad Mini MK3 integration for Zcode AI coding app"
 readme = "README.md"
-license = {text = "MIT"}
-keywords = ["ai-safety", "cryptography", "audit", "blockchain", "ethics", "python-bindings"]
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Rust",
-    "Topic :: Security :: Cryptography",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-]
 requires-python = ">=3.8"
-dependencies = []
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.0",
-    "pytest-asyncio>=0.21",
-    "black>=23.0",
-    "mypy>=1.0",
-    "ruff>=0.1",
+dependencies = [
+    "mido>=1.2.10",
+    "python-rtmidi>=1.4.9"
 ]
 
-# Individual API Integrations (v1.8.0)
-openai = ["openai>=1.0"]
-anthropic = ["anthropic>=0.18"]
-gemini = ["google-generativeai>=0.4"]
-grok = ["openai>=1.0"]  # Uses OpenAI-compatible API
-perplexity = ["openai>=1.0"]  # Uses OpenAI-compatible API
-mistral = ["mistralai>=1.0"]
-deepseek = ["openai>=1.0"]  # Uses OpenAI-compatible API
-kimi = ["openai>=1.0"]  # Uses OpenAI-compatible API
-ollama = ["requests>=2.28"]  # Local models
-
-# LangChain
-langchain = [
-    "langchain>=0.1",
-    "langchain-core>=0.1",
-]
-
-# All cloud integrations
-cloud = [
-    "openai>=1.0",
-    "anthropic>=0.18",
-    "google-generativeai>=0.4",
-    "mistralai>=1.0",
-]
-
-# All integrations (cloud + local + langchain)
-integrations = [
-    "openai>=1.0",
-    "anthropic>=0.18",
-    "google-generativeai>=0.4",
-    "mistralai>=1.0",
-    "requests>=2.28",
-    "langchain>=0.1",
-    "langchain-core>=0.1",
-]
-
-examples = [
-    "fastapi>=0.104",
-    "langchain>=0.1",
-    "openai>=1.0",
-    "jupyter>=1.0",
-    "notebook>=7.0",
-]
-
-[project.urls]
-Homepage = "https://github.com/silentnoisehun/Hope_Genome"
-Repository = "https://github.com/silentnoisehun/Hope_Genome"
-Documentation = "https://github.com/silentnoisehun/Hope_Genome/blob/main/README.md"
-"Bug Tracker" = "https://github.com/silentnoisehun/Hope_Genome/issues"
-
-[tool.maturin]
-features = ["python-bindings", "pyo3/extension-module"]
-module-name = "hope_genome._hope_core"
-python-source = "python"
-bindings = "pyo3"
-manifest-path = "hope_core/Cargo.toml"
+[project.scripts]
+zcode-launchpad-daemon = "launchpad_zcode.daemon:main"
+zcode-launchpad-notify = "launchpad_zcode.cli:main"
 
 [tool.pytest.ini_options]
-minversion = "7.0"
-addopts = "-ra -q --strict-markers"
 testpaths = ["tests"]
-pythonpath = ["python"]
-
-[tool.mypy]
-python_version = "3.8"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-
-[tool.black]
-line-length = 100
-target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
-
-[tool.ruff]
-line-length = 100
-target-version = "py38"
