@@ -1,6 +1,6 @@
 /**
  * HERMES SERVERLESS - Modular Adapter Architecture
- * Clean abstraction layer for WASM memory, File System Access API, and Model Router.
+ * Clean abstraction layer for WASM memory, File System Access API, Model Router, Spine Event Bus, Octopus Policy Engine, and OPFS/IndexedDB Persistence.
  */
 
 // 1. WASM Memory Adapter Interface (Microscope Memory v2 compatible)
@@ -9,6 +9,7 @@ class WasmMemoryAdapter {
     this.memorySize = 131072; // 128 KB base
     this.initialized = true;
     this.moduleName = "Microscope Memory v2 (WASM)";
+    this.recalledBlocks = [];
   }
 
   async getMemorySize() {
@@ -18,6 +19,25 @@ class WasmMemoryAdapter {
   async allocate(bytes) {
     this.memorySize += bytes;
     return this.memorySize;
+  }
+
+  async recall(query, k = 3) {
+    this.recalledBlocks = [
+      { id: "mem_01", text: "Emberi autonómia védelme a legfőbb szabály.", layer: "WASM_M2", importance: 0.9 },
+      { id: "mem_02", text: "Minden művelet előtt explicit jóváhagyás szükséges.", layer: "WASM_M2", importance: 0.85 }
+    ];
+    return this.recalledBlocks;
+  }
+
+  async store(text, layer = "WASM_M2", importance = 0.8) {
+    await this.allocate(text.length * 2);
+    return {
+      confirmed: true,
+      text,
+      layer,
+      importance,
+      timestamp: new Date().toISOString()
+    };
   }
 
   async getFormattedSize() {
@@ -30,7 +50,66 @@ class WasmMemoryAdapter {
   }
 }
 
-// 2. File System Sync Adapter Interface
+// 2. OPFS & IndexedDB Persistence Manager
+class OpfsWorkspaceStore {
+  constructor() {
+    this.dbName = "HermesSessionDB";
+    this.dbVersion = 1;
+    this.db = null;
+    this.initDb();
+  }
+
+  async initDb() {
+    if (!('indexedDB' in window)) return;
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.dbName, this.dbVersion);
+      request.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('snapshots')) {
+          db.createObjectStore('snapshots', { keyPath: 'stateHash' });
+        }
+        if (!db.objectStoreNames.contains('audit_logs')) {
+          db.createObjectStore('audit_logs', { keyPath: 'id', autoIncrement: true });
+        }
+      };
+      request.onsuccess = (e) => {
+        this.db = e.target.result;
+        resolve(this.db);
+      };
+      request.onerror = (e) => reject(e);
+    });
+  }
+
+  async saveSnapshot(snapshot) {
+    if (!this.db) await this.initDb();
+    if (!this.db) return;
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction('snapshots', 'readwrite');
+      const store = tx.objectStore('snapshots');
+      store.put(snapshot);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => reject(false);
+    });
+  }
+
+  async saveOpfsBinary(filename, content) {
+    if ('navigator' in window && 'storage' in navigator && 'getDirectory' in navigator.storage) {
+      try {
+        const root = await navigator.storage.getDirectory();
+        const fileHandle = await root.getFileHandle(filename, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(content);
+        await writable.close();
+        return true;
+      } catch (err) {
+        console.warn("[OpfsWorkspaceStore] OPFS write error:", err);
+      }
+    }
+    return false;
+  }
+}
+
+// 3. File System Sync Adapter Interface
 class FileSystemSyncAdapter {
   constructor() {
     this.lastSyncTimestamp = new Date();
@@ -40,7 +119,6 @@ class FileSystemSyncAdapter {
 
   async syncLocalState(payload) {
     this.lastSyncTimestamp = new Date();
-    // Simulate File System Access API write
     return {
       success: true,
       timestamp: this.lastSyncTimestamp.toISOString(),
@@ -57,7 +135,7 @@ class FileSystemSyncAdapter {
   }
 }
 
-// 3. Model Router Adapter Interface (Octopus Runtime & OpenCode Zen compatible)
+// 4. Model Router Adapter Interface
 class ModelRouterAdapter {
   constructor() {
     this.mode = 'LOCAL_ONLY';
@@ -83,7 +161,6 @@ class ModelRouterAdapter {
   }
 
   async generateResponse(prompt) {
-    // Simulate local inference delay
     await new Promise((resolve) => setTimeout(resolve, 800));
 
     const responses = [
@@ -103,7 +180,7 @@ class ModelRouterAdapter {
   }
 }
 
-// 4. Merkle Chain & Cryptographic Log Manager
+// 5. Merkle Chain & Cryptographic Log Manager
 class MerkleLogChain {
   constructor() {
     this.logs = [];
@@ -131,7 +208,7 @@ class MerkleLogChain {
 
     const newHashPart = await this.computeHash(JSON.stringify(logItem) + this.merkleRoot);
     this.merkleRoot = newHashPart;
-    this.logs.unshift(logItem); // Newest first for live display
+    this.logs.unshift(logItem);
 
     return {
       logItem,
@@ -145,10 +222,85 @@ class MerkleLogChain {
   }
 }
 
+// 6. Typed Browser Spine Event Bus
+class BrowserSpineBus {
+  constructor() {
+    this.listeners = [];
+    this.eventHistory = [];
+    this.seenEventIds = new Set();
+  }
+
+  subscribe(callback) {
+    this.listeners.push(callback);
+    return () => {
+      this.listeners = this.listeners.filter(cb => cb !== callback);
+    };
+  }
+
+  emit(envelope) {
+    if (this.seenEventIds.has(envelope.eventId)) {
+      return;
+    }
+    this.seenEventIds.add(envelope.eventId);
+    this.eventHistory.push(envelope);
+
+    this.listeners.forEach(cb => cb(envelope));
+  }
+}
+
+// 7. Browser Octopus Policy Engine
+class BrowserOctopusPolicy {
+  constructor() {
+    this.allowedCapabilities = new Set([
+      "opfs.read",
+      "opfs.write",
+      "file.pick",
+      "crypto.hash",
+      "data.export",
+      "wasm.run"
+    ]);
+
+    this.unsupportedCapabilities = new Set([
+      "process.spawn",
+      "shell.execute",
+      "systemd.control",
+      "native.mmap",
+      "arbitrary.filesystem"
+    ]);
+  }
+
+  evaluateCapability(capabilityName) {
+    if (this.unsupportedCapabilities.has(capabilityName)) {
+      return {
+        allowed: false,
+        reason: "The browser sandbox does not expose arbitrary OS process/native capability execution.",
+        code: "unsupported_in_browser"
+      };
+    }
+
+    if (this.allowedCapabilities.has(capabilityName)) {
+      return {
+        allowed: true,
+        requiresApproval: true,
+        code: "requires_user_approval"
+      };
+    }
+
+    return {
+      allowed: false,
+      reason: "Capability is not registered in the Browser Octopus Policy matrix.",
+      code: "capability_denied"
+    };
+  }
+}
+
 // Global Adapter Instances
 window.HermesAdapters = {
   wasmMemory: new WasmMemoryAdapter(),
+  opfsWorkspace: new OpfsWorkspaceStore(),
   fileSync: new FileSystemSyncAdapter(),
   modelRouter: new ModelRouterAdapter(),
-  merkleChain: new MerkleLogChain()
+  merkleChain: new MerkleLogChain(),
+  spineBus: new BrowserSpineBus(),
+  policy: new BrowserOctopusPolicy()
 };

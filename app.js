@@ -1,17 +1,26 @@
 /**
  * HERMES SERVERLESS - Black Developer Workspace Controller
+ * Connects UI to Agent Web Worker and Spine Event Bus
  */
 
 document.addEventListener('DOMContentLoaded', () => {
   const adapters = window.HermesAdapters;
 
+  // Initialize Web Worker for Agent Runtime
+  let agentWorker = null;
+  try {
+    agentWorker = new Worker('agentWorker.js');
+    agentWorker.postMessage({ action: 'INIT_WORKER' });
+  } catch (err) {
+    console.warn('[App] Web Worker initialization failed, falling back:', err);
+  }
+
   // State
-  let isLiveMode = false;
   let notifications = [
     {
-      id: 1,
+      id: "notif_001",
       title: "SYSTEM_INIT",
-      body: "HERMES SERVERLESS v2.5.0 ready. Local memory active.",
+      body: "HERMES SERVERLESS v2.5.0 ready. Worker-first runtime active.",
       tone: "cyan",
       read: false,
       time: new Date().toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' })
@@ -37,7 +46,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const headerStatusBadge = document.getElementById('headerStatusBadge');
   const presenceStateText = document.getElementById('presenceStateText');
   const liveToggleBtn = document.getElementById('liveToggleBtn');
-  const liveBtnText = document.getElementById('liveBtnText');
   const stopLiveBtn = document.getElementById('stopLiveBtn');
 
   const thinkingStateText = document.getElementById('thinkingStateText');
@@ -73,6 +81,54 @@ document.addEventListener('DOMContentLoaded', () => {
   const qrCodeContainer = document.getElementById('qrCodeContainer');
   const qrUrlText = document.getElementById('qrUrlText');
 
+  // Listen for Spine Events & Worker Messages
+  if (agentWorker) {
+    agentWorker.onmessage = (e) => {
+      const { kind, envelope, response, actionId, success, evidence, denied } = e.data || {};
+
+      if (kind === "SPINE_EVENT" && envelope) {
+        adapters.spineBus.emit(envelope);
+
+        // Project Spine event into Notification Center
+        if (envelope.type === "tool_proposed") {
+          addNotification("CAPABILITY_PROPOSAL", `Proposal: ${envelope.capability}`, "copper", envelope.eventId);
+        } else if (envelope.type === "evidence") {
+          addNotification("EVIDENCE_VERIFIED", envelope.summary, envelope.passed ? "green" : "amber", envelope.eventId);
+        } else if (envelope.type === "audit") {
+          adapters.merkleChain.appendLog("WORKER_AUDIT", envelope.message);
+          updateSystemMetrics();
+        } else if (envelope.type === "assistant_thinking") {
+          if (thinkingStateText) thinkingStateText.textContent = envelope.phase.toUpperCase();
+        }
+      }
+
+      if (kind === "ASSISTANT_RESPONSE" && response) {
+        const assistantMsg = {
+          sender: 'HOPE',
+          text: response.text,
+          time: new Date().toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' }),
+          actionApproval: response.actionProposal,
+          unsupportedCapability: response.unsupportedCapability,
+          telemetry: response.telemetry
+        };
+        messages.push(assistantMsg);
+        renderMessages();
+        updateSystemMetrics();
+      }
+
+      if (kind === "TOOL_RESULT") {
+        if (success) {
+          addNotification("TOOL_EXECUTED", `Action ${actionId} executed & evidence verified.`, "green");
+        } else if (denied) {
+          addNotification("ACTION_DENIED", `Action ${actionId} explicitly denied by user.`, "amber");
+        } else {
+          addNotification("TOOL_ERROR", `Action ${actionId} failed or rolled back.`, "amber");
+        }
+        updateSystemMetrics();
+      }
+    };
+  }
+
   // Inspector Toggle
   if (inspectToggleBtn && rightInspector) {
     inspectToggleBtn.addEventListener('click', () => {
@@ -97,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // --- 0. Model Selector Handling ---
+  // Model Selector
   if (modelRouterSelect) {
     modelRouterSelect.addEventListener('change', async (e) => {
       const selectedModelId = e.target.value;
@@ -110,13 +166,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // --- 1. Notification Management ---
-  function addNotification(title, body, tone = 'copper') {
+  // Notification Projection & Management
+  function addNotification(title, body, tone = 'copper', eventId = null) {
     const newNotif = {
-      id: Date.now(),
+      id: eventId || `notif_${Date.now()}`,
       title,
       body,
-      tone, // "copper" | "cyan" | "green" | "amber"
+      tone,
       read: false,
       time: new Date().toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' })
     };
@@ -152,9 +208,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // --- 2. Presence & Live State Toggles ---
+  // Presence State Toggles
   async function setLiveMode(active) {
-    isLiveMode = active;
     if (active) {
       headerStatusBadge.classList.add('live');
       headerStatusText.textContent = 'LIVE / FIGYEL';
@@ -180,7 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (liveToggleBtn) liveToggleBtn.addEventListener('click', () => setLiveMode(true));
   if (stopLiveBtn) stopLiveBtn.addEventListener('click', () => setLiveMode(false));
 
-  // --- 3. Message & Thinking Stream ---
+  // Render Chat Messages & Action Approvals / Unsupported Blocks
   function renderMessages() {
     messageStream.innerHTML = messages.map((m, index) => {
       const isUser = m.sender === 'TE';
@@ -190,15 +245,25 @@ document.addEventListener('DOMContentLoaded', () => {
         actionBlockHtml = `
           <div class="action-approval-panel" id="approvalPanel_${index}">
             <div class="approval-header">
-              <span class="capability-title">CAPABILITY_REQUEST: ${escapeHtml(m.actionApproval.capability)}</span>
-              <span class="mono text-muted" style="font-size:10px;">PROPOSAL_ID: ${m.actionApproval.id}</span>
+              <span class="capability-title">CAPABILITY_PROPOSAL: ${escapeHtml(m.actionApproval.capability)}</span>
+              <span class="mono text-muted" style="font-size:10px;">ACTION_ID: ${m.actionApproval.actionId}</span>
             </div>
             <div class="approval-body">${escapeHtml(m.actionApproval.reason)}</div>
             <div class="approval-scope">SCOPE: ${escapeHtml(m.actionApproval.scope)}</div>
             <div class="approval-actions" id="approvalActions_${index}">
-              <button class="btn-approve" onclick="window.approveAction(${index})">Jóváhagyom</button>
-              <button class="btn-deny" onclick="window.denyAction(${index})">Elutasítom</button>
+              <button class="btn-approve" onclick="window.approveAction('${m.actionApproval.actionId}', '${m.actionApproval.capability}', '${m.actionApproval.scope}', ${index})">Jóváhagyom</button>
+              <button class="btn-deny" onclick="window.denyAction('${m.actionApproval.actionId}', '${m.actionApproval.capability}', ${index})">Elutasítom</button>
             </div>
+          </div>
+        `;
+      } else if (m.unsupportedCapability) {
+        actionBlockHtml = `
+          <div class="action-approval-panel" style="border-left-color: var(--danger-red);">
+            <div class="approval-header">
+              <span class="capability-title" style="color: var(--danger-red);">UNSUPPORTED IN BROWSER</span>
+            </div>
+            <div class="approval-body">Capability: <code>${escapeHtml(m.unsupportedCapability.capability)}</code></div>
+            <div class="approval-scope" style="color: var(--danger-red);">${escapeHtml(m.unsupportedCapability.reason)}</div>
           </div>
         `;
       }
@@ -227,32 +292,30 @@ document.addEventListener('DOMContentLoaded', () => {
     messageStream.scrollTop = messageStream.scrollHeight;
   }
 
-  // Window action approval handlers
-  window.approveAction = async (msgIndex) => {
-    const msg = messages[msgIndex];
-    if (msg && msg.actionApproval) {
-      msg.actionApproval.status = 'APPROVED';
-      const actionsElem = document.getElementById(`approvalActions_${msgIndex}`);
-      if (actionsElem) {
-        actionsElem.innerHTML = `<span class="mono text-green" style="font-size:11px;">✓ APPROVED & EVIDENCE VERIFIED</span>`;
-      }
-      await adapters.merkleChain.appendLog('ACTION_APPROVED', msg.actionApproval.capability);
-      addNotification("EVIDENCE_VERIFIED", `Capability approved: ${msg.actionApproval.capability}`, "green");
-      updateSystemMetrics();
+  // Global Action Handlers mapped to Web Worker
+  window.approveAction = (actionId, capability, scope, msgIndex) => {
+    if (agentWorker) {
+      agentWorker.postMessage({
+        action: 'APPROVE_TOOL',
+        payload: { actionId, capability, scope }
+      });
+    }
+    const actionsElem = document.getElementById(`approvalActions_${msgIndex}`);
+    if (actionsElem) {
+      actionsElem.innerHTML = `<span class="mono text-green" style="font-size:11px;">✓ APPROVED & EXECUTING IN WORKER...</span>`;
     }
   };
 
-  window.denyAction = async (msgIndex) => {
-    const msg = messages[msgIndex];
-    if (msg && msg.actionApproval) {
-      msg.actionApproval.status = 'DENIED';
-      const actionsElem = document.getElementById(`approvalActions_${msgIndex}`);
-      if (actionsElem) {
-        actionsElem.innerHTML = `<span class="mono text-muted" style="font-size:11px;">✗ REQUEST DENIED</span>`;
-      }
-      await adapters.merkleChain.appendLog('ACTION_DENIED', msg.actionApproval.capability);
-      addNotification("ACTION_DENIED", `Capability request denied: ${msg.actionApproval.capability}`, "amber");
-      updateSystemMetrics();
+  window.denyAction = (actionId, capability, msgIndex) => {
+    if (agentWorker) {
+      agentWorker.postMessage({
+        action: 'DENY_TOOL',
+        payload: { actionId, capability }
+      });
+    }
+    const actionsElem = document.getElementById(`approvalActions_${msgIndex}`);
+    if (actionsElem) {
+      actionsElem.innerHTML = `<span class="mono text-muted" style="font-size:11px;">✗ REQUEST DENIED</span>`;
     }
   };
 
@@ -276,59 +339,19 @@ document.addEventListener('DOMContentLoaded', () => {
     sendBtn.classList.remove('active');
     renderMessages();
 
-    // Instant Local Append Log
-    await adapters.merkleChain.appendLog('USER_INPUT', text.substring(0, 30));
-    await adapters.wasmMemory.allocate(text.length * 2);
-    updateSystemMetrics();
-
-    // Thinking State Transition
-    setThinkingState('JEL ÉL');
-
-    setTimeout(() => {
-      setThinkingState('GONDOLKODOM');
-    }, 300);
-
-    // Delayed Assistant Response
-    setTimeout(async () => {
-      const responseText = await adapters.modelRouter.generateResponse(text);
-
-      // Include an Action Proposal if text mentions capability/action
-      let actionProposal = null;
-      if (text.toLowerCase().includes('sync') || text.toLowerCase().includes('művelet') || text.toLowerCase().includes('export')) {
-        actionProposal = {
-          id: `prop_${Date.now().toString().slice(-4)}`,
-          capability: "OCTOPUS_LOCAL_SYNC",
-          reason: "Lokális adatterjedelem frissítése a File System Access API-val.",
-          scope: "READ_WRITE / LOCAL_FS",
-          status: "PENDING"
-        };
-      }
-
-      const assistantMsg = {
-        sender: 'HOPE',
-        text: responseText,
-        time: new Date().toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' }),
-        actionApproval: actionProposal,
-        telemetry: {
-          id: `evt_hope_${Date.now().toString().slice(-4)}`,
-          phase: "STREAM_DONE",
-          memoryLayer: "WASM_M2"
+    // Delegate to Agent Worker
+    if (agentWorker) {
+      agentWorker.postMessage({
+        action: 'USER_MESSAGE',
+        payload: {
+          text,
+          modelId: modelRouterSelect ? modelRouterSelect.value : 'opencode-zen-free'
         }
-      };
-      messages.push(assistantMsg);
-      renderMessages();
+      });
+    }
 
-      setThinkingState('VÁRAKOZIK');
-
-      await adapters.merkleChain.appendLog('ASSISTANT_RESPONSE', responseText.substring(0, 30));
-      updateSystemMetrics();
-
-      addNotification("Új gondolati válasz", responseText.substring(0, 50) + "...", "cyan");
-    }, 1000);
-  }
-
-  function setThinkingState(state) {
-    if (thinkingStateText) thinkingStateText.textContent = state;
+    await adapters.merkleChain.appendLog('USER_INPUT', text.substring(0, 30));
+    updateSystemMetrics();
   }
 
   if (composerInput) {
@@ -342,7 +365,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (sendBtn) sendBtn.addEventListener('click', handleSendMessage);
 
-  // --- 4. System Metrics & Merkle Chain ---
+  // System Metrics & Append Log Updates
   async function updateSystemMetrics() {
     if (memorySizeVal) memorySizeVal.textContent = await adapters.wasmMemory.getFormattedSize();
     if (lastSyncVal) lastSyncVal.textContent = adapters.fileSync.getLastSyncFormatted();
@@ -358,18 +381,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // --- 5. Sync Diff & Modals ---
-  if (syncDiffBtn) {
-    syncDiffBtn.addEventListener('click', () => {
-      syncDiffModal.classList.remove('hidden');
-    });
-  }
-
-  if (closeSyncModal) {
-    closeSyncModal.addEventListener('click', () => {
-      syncDiffModal.classList.add('hidden');
-    });
-  }
+  // Modals & Exporting
+  if (syncDiffBtn) syncDiffBtn.addEventListener('click', () => syncDiffModal.classList.remove('hidden'));
+  if (closeSyncModal) closeSyncModal.addEventListener('click', () => syncDiffModal.classList.add('hidden'));
 
   if (confirmSyncBtn) {
     confirmSyncBtn.addEventListener('click', async () => {
@@ -380,7 +394,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // --- 6. QR Code Mobile Install Modal ---
   function generateSvgQrCode(url) {
     return `
       <svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 25 25" shape-rendering="crispEdges">
@@ -413,13 +426,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  if (closeQrModal) {
-    closeQrModal.addEventListener('click', () => {
-      qrModal.classList.add('hidden');
-    });
-  }
+  if (closeQrModal) closeQrModal.addEventListener('click', () => qrModal.classList.add('hidden'));
 
-  // --- 7. APv2 Export ---
   if (exportApv2Btn) {
     exportApv2Btn.addEventListener('click', () => {
       const exportData = {
@@ -448,17 +456,12 @@ document.addEventListener('DOMContentLoaded', () => {
     return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
 
-  // Initialize
+  // Init
   renderNotifications();
   renderMessages();
-  adapters.merkleChain.appendLog('SYS_INIT', 'BLACK_WORKSPACE_READY').then(() => {
-    updateSystemMetrics();
-  });
+  adapters.merkleChain.appendLog('SYS_INIT', 'WORKER_RUNTIME_READY').then(() => updateSystemMetrics());
 
-  // Service Worker Registration
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch((err) => {
-      console.log('SW registration failed:', err);
-    });
+    navigator.serviceWorker.register('./sw.js').catch((err) => console.log('SW error:', err));
   }
 });
