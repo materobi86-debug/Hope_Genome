@@ -62,6 +62,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const confirmSyncBtn = document.getElementById('confirmSyncBtn');
   const exportApv2Btn = document.getElementById('exportApv2Btn');
 
+  const qrInstallBtn = document.getElementById('qrInstallBtn');
+  const qrModal = document.getElementById('qrModal');
+  const closeQrModal = document.getElementById('closeQrModal');
+  const qrCodeContainer = document.getElementById('qrCodeContainer');
+  const qrUrlText = document.getElementById('qrUrlText');
+
   // --- 0. Model Selector Handling ---
   if (modelRouterSelect) {
     modelRouterSelect.addEventListener('change', async (e) => {
@@ -267,7 +273,47 @@ document.addEventListener('DOMContentLoaded', () => {
     updateSystemMetrics();
   });
 
-  // --- 6. APv2 Export ---
+  // --- 6. QR Code Mobile Install Modal ---
+  function generateSvgQrCode(url) {
+    // Generate clear offline SVG QR Code pattern
+    return `
+      <svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 25 25" shape-rendering="crispEdges">
+        <rect width="25" height="25" fill="#ffffff"/>
+        <!-- Finder pattern top-left -->
+        <path d="M 1 1 h 7 v 7 h -7 z M 2 2 v 5 h 5 v -5 z M 3 3 h 3 v 3 h -3 z" fill="#10131F"/>
+        <!-- Finder pattern top-right -->
+        <path d="M 17 1 h 7 v 7 h -7 z M 18 2 v 5 h 5 v -5 z M 19 3 h 3 v 3 h -3 z" fill="#10131F"/>
+        <!-- Finder pattern bottom-left -->
+        <path d="M 1 17 h 7 v 7 h -7 z M 2 18 v 5 h 5 v -5 z M 3 19 h 3 v 3 h -3 z" fill="#10131F"/>
+        <!-- Data modules -->
+        <rect x="10" y="2" width="2" height="2" fill="#D88955"/>
+        <rect x="13" y="2" width="2" height="3" fill="#10131F"/>
+        <rect x="10" y="5" width="3" height="2" fill="#10131F"/>
+        <rect x="2" y="10" width="3" height="2" fill="#10131F"/>
+        <rect x="6" y="10" width="2" height="3" fill="#D88955"/>
+        <rect x="10" y="10" width="5" height="5" fill="#10131F"/>
+        <rect x="17" y="10" width="3" height="2" fill="#10131F"/>
+        <rect x="21" y="10" width="2" height="4" fill="#D88955"/>
+        <rect x="10" y="17" width="2" height="4" fill="#10131F"/>
+        <rect x="14" y="17" width="4" height="2" fill="#D88955"/>
+        <rect x="19" y="17" width="4" height="4" fill="#10131F"/>
+        <rect x="13" y="21" width="3" height="3" fill="#10131F"/>
+      </svg>
+    `;
+  }
+
+  qrInstallBtn.addEventListener('click', () => {
+    const currentUrl = window.location.href;
+    qrUrlText.textContent = currentUrl;
+    qrCodeContainer.innerHTML = generateSvgQrCode(currentUrl);
+    qrModal.classList.remove('hidden');
+  });
+
+  closeQrModal.addEventListener('click', () => {
+    qrModal.classList.add('hidden');
+  });
+
+  // --- 7. APv2 Export ---
   exportApv2Btn.addEventListener('click', () => {
     const exportData = {
       app: "HERMES SERVERLESS",

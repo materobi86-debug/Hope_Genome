@@ -39,6 +39,16 @@
         <div class="lang-badge">HU-HU</div>
         <div class="version-badge">v2.5.0</div>
 
+        <button class="btn btn-outline btn-sm qr-install-btn" id="qrInstallBtn" title="Mobil Telepítés QR">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          <span>QR Telepítés</span>
+        </button>
+
         <button class="icon-btn notif-btn" id="notifBtn" aria-label="Értesítések">
           <svg class="bell-icon" viewBox="0 0 24 24" width="20" height="20">
             <path fill="currentColor" d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
@@ -268,6 +278,24 @@
         </div>
         <div class="modal-footer">
           <button class="btn btn-copper btn-sm" id="confirmSyncBtn">Szinkron Jóváhagyása</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: QR INSTALL -->
+    <div class="modal-backdrop hidden" id="qrModal">
+      <div class="modal-card border-card qr-modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title">Telepítés Mobilre (PWA)</h3>
+          <button class="close-btn" id="closeQrModal">&times;</button>
+        </div>
+        <div class="modal-body text-center">
+          <p class="qr-instructions">Beolvasással azonnal megnyithatod és kezdőképernyőre helyezheted mobilodon:</p>
+          <div class="qr-code-container" id="qrCodeContainer">
+            <!-- QR code generated dynamically -->
+          </div>
+          <div class="qr-url-display mono" id="qrUrlText">http://localhost:8080</div>
+          <div class="qr-tip mono">💡 Tipp: Safari/Chrome menüben nyomj a „Kezdőképernyőhöz adás” gombra.</div>
         </div>
       </div>
     </div>

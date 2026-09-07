@@ -52,6 +52,10 @@ html, body {
   font-family: var(--font-mono);
 }
 
+.text-center {
+  text-align: center;
+}
+
 /* Utility Classes */
 .hidden {
   display: none !important;
@@ -158,6 +162,13 @@ html, body {
   border: 1px solid var(--border-color);
   padding: 0.35rem 0.6rem;
   border-radius: var(--radius-sm);
+}
+
+.qr-install-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
 }
 
 .icon-btn {
@@ -855,7 +866,7 @@ input:checked + .slider:before {
   text-align: center;
 }
 
-/* Sync Modal */
+/* Sync & QR Modals */
 .modal-backdrop {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -874,11 +885,45 @@ input:checked + .slider:before {
   background: var(--panel-bg-dark);
 }
 
+.qr-modal-card {
+  max-width: 400px;
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1rem;
+}
+
+.qr-instructions {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+}
+
+.qr-code-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  margin: 0 auto 1rem;
+  width: 200px;
+  height: 200px;
+}
+
+.qr-url-display {
+  font-size: 0.75rem;
+  color: var(--sync-turquoise);
+  word-break: break-all;
+  margin-bottom: 0.75rem;
+}
+
+.qr-tip {
+  font-size: 0.75rem;
+  color: var(--pale-copper);
 }
 
 .diff-view {
