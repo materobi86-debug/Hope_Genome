@@ -3,11 +3,12 @@
  * Clean abstraction layer for WASM memory, File System Access API, and Model Router.
  */
 
-// 1. WASM Memory Adapter Interface & Mock Implementation
+// 1. WASM Memory Adapter Interface (Microscope Memory v2 compatible)
 class WasmMemoryAdapter {
   constructor() {
-    this.memorySize = 131072; // 128 KB
+    this.memorySize = 131072; // 128 KB base
     this.initialized = true;
+    this.moduleName = "Microscope Memory v2 (WASM)";
   }
 
   async getMemorySize() {
@@ -23,9 +24,13 @@ class WasmMemoryAdapter {
     const kb = (this.memorySize / 1024).toFixed(1);
     return `${kb} KB`;
   }
+
+  getModuleName() {
+    return this.moduleName;
+  }
 }
 
-// 2. File System Sync Adapter Interface & Mock Implementation
+// 2. File System Sync Adapter Interface
 class FileSystemSyncAdapter {
   constructor() {
     this.lastSyncTimestamp = new Date();
@@ -52,10 +57,11 @@ class FileSystemSyncAdapter {
   }
 }
 
-// 3. Model Router Adapter Interface & Mock Implementation
+// 3. Model Router Adapter Interface (Octopus Runtime compatible)
 class ModelRouterAdapter {
   constructor() {
     this.mode = 'LOCAL_ONLY';
+    this.engineName = 'Octopus Runtime (Local Router)';
   }
 
   async generateResponse(prompt) {
@@ -72,6 +78,10 @@ class ModelRouterAdapter {
 
     const randomIndex = Math.floor(Math.random() * responses.length);
     return responses[randomIndex];
+  }
+
+  getEngineName() {
+    return this.engineName;
   }
 }
 

@@ -43,6 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const sendBtn = document.getElementById('sendBtn');
 
   const memorySizeVal = document.getElementById('memorySizeVal');
+  const memoryAdapterText = document.getElementById('memoryAdapterText');
   const lastSyncVal = document.getElementById('lastSyncVal');
   const merkleHashVal = document.getElementById('merkleHashVal');
   const appendLogList = document.getElementById('appendLogList');
@@ -221,6 +222,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- 4. System Metrics & Merkle Chain ---
   async function updateSystemMetrics() {
     memorySizeVal.textContent = await adapters.wasmMemory.getFormattedSize();
+    if (memoryAdapterText && adapters.wasmMemory.getModuleName) {
+      memoryAdapterText.textContent = adapters.wasmMemory.getModuleName();
+    }
     lastSyncVal.textContent = adapters.fileSync.getLastSyncFormatted();
     merkleHashVal.textContent = adapters.merkleChain.getShortHash();
 
