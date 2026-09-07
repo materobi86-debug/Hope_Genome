@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HERMES SERVERLESS — Éjféli Jeladó</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <meta name="theme-color" content="#10131F">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app" class="dashboard-container">
+
+    <!-- HEADER -->
+    <header class="main-header">
+      <div class="brand-block">
+        <img src="logo.svg" alt="HERMES Emblem" class="brand-logo" />
+        <div class="brand-titles">
+          <div class="brand-name">
+            <span class="hermes">HERMES</span>
+            <span class="serverless">SERVERLESS</span>
+          </div>
+          <div class="sub-title">Éjféli Jeladó</div>
+        </div>
+      </div>
+
+      <div class="header-meta">
+        <div class="status-badge" id="headerStatusBadge">
+          <span class="status-dot"></span>
+          <span class="status-text" id="headerStatusText">LOCAL / KÉSZENLÉT</span>
+        </div>
+        <div class="lang-badge">HU-HU</div>
+        <div class="version-badge">v2.5.0</div>
+
+        <button class="icon-btn notif-btn" id="notifBtn" aria-label="Értesítések">
+          <svg class="bell-icon" viewBox="0 0 24 24" width="20" height="20">
+            <path fill="currentColor" d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
+          </svg>
+          <span class="notif-counter" id="notifCounter">0</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- MAIN DASHBOARD CONTENT (3 COLUMNS DESKTOP / 1 COLUMN MOBILE) -->
+    <main class="dashboard-grid">
+
+      <!-- 1. PRESENCE PANEL (LEFT) -->
+      <section class="panel presence-panel" id="presencePanel">
+        <div class="panel-header-line"></div>
+        <div class="panel-header">
+          <h2 class="panel-title">Presence</h2>
+          <span class="panel-tag mono">ID: HOPE-01</span>
+        </div>
+
+        <div class="presence-content">
+          <!-- Resonance Ring Container -->
+          <div class="resonance-ring-container" id="ringContainer">
+            <div class="ring outer-ring"></div>
+            <div class="ring middle-ring"></div>
+            <div class="ring inner-ring"></div>
+            <div class="center-brand">
+              <img src="logo.svg" alt="HERMES Logo" class="ring-logo" />
+            </div>
+          </div>
+
+          <div class="presence-state-label" id="presenceStateText">Itt vagyok.</div>
+          <div class="presence-subtext">Lokális memória. Emberi kontroll.</div>
+
+          <div class="presence-actions">
+            <button class="btn btn-copper" id="liveToggleBtn">
+              <span class="btn-icon">⚡</span>
+              <span id="liveBtnText">LIVE mód bekapcsolása</span>
+            </button>
+
+            <button class="btn btn-danger hidden" id="stopLiveBtn">
+              <span class="btn-icon">⏹</span>
+              <span>Állj le</span>
+            </button>
+          </div>
+
+          <div class="identity-block border-card">
+            <div class="card-title mono">IDENTITY / IDENTITY AGENT</div>
+            <div class="identity-details mono">
+              <div>PROTOCOL: LOCAL_ONLY</div>
+              <div>AUTH: NO_CENTRAL_AUTH</div>
+              <div>OWNER: EMBERI_OPERÁTOR</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. THINKING BLOCK (CENTER) -->
+      <section class="panel thinking-panel">
+        <div class="panel-header-line"></div>
+        <div class="panel-header">
+          <h2 class="panel-title">Thinking Block</h2>
+          <div class="thinking-status-indicator mono" id="thinkingStateBadge">
+            <span class="pulse-dot"></span>
+            <span id="thinkingStateText">VÁRAKOZIK</span>
+          </div>
+        </div>
+
+        <div class="thinking-content">
+          <div class="thinking-title-row">
+            <h3 class="block-headline">Mi dolgozik benned?</h3>
+            <div class="audio-mode-toggle">
+              <label class="toggle-switch">
+                <input type="checkbox" id="audioModeToggle">
+                <span class="slider"></span>
+              </label>
+              <span class="toggle-label mono">Hangmód</span>
+            </div>
+          </div>
+
+          <!-- Resonance Waveform Visualization -->
+          <div class="waveform-container" id="waveformContainer">
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+          </div>
+
+          <!-- Message Stream -->
+          <div class="message-stream" id="messageStream">
+            <!-- Initial Messages loaded dynamically or present as seeds -->
+          </div>
+
+          <!-- Composer -->
+          <div class="composer-box">
+            <textarea id="composerInput" placeholder="Írj ide gondolatot vagy utasítást... (Enter küld, Shift+Enter új sor)" rows="3"></textarea>
+            <div class="composer-footer">
+              <span class="composer-hint mono">Lokális feldolgozás • Ed25519 Aláírt</span>
+              <button class="btn btn-copper btn-send" id="sendBtn">
+                <span>Küldés</span>
+                <span class="send-arrow">↵</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. SYSTEM PANEL (RIGHT) -->
+      <section class="panel system-panel">
+        <div class="panel-header-line"></div>
+        <div class="panel-header">
+          <h2 class="panel-title">System</h2>
+          <span class="panel-tag mono">SYS_MONITOR</span>
+        </div>
+
+        <div class="system-content">
+
+          <!-- Metrics Grid -->
+          <div class="metrics-grid">
+            <div class="metric-card border-card">
+              <div class="metric-label mono">MEMORY v2</div>
+              <div class="metric-value mono" id="memorySizeVal">128 KB</div>
+              <div class="metric-sub mono">Browser Storage</div>
+            </div>
+
+            <div class="metric-card border-card">
+              <div class="metric-label mono">LAST SYNC</div>
+              <div class="metric-value mono" id="lastSyncVal">Most</div>
+              <div class="metric-sub mono" id="syncAdapterText">FS Adapter: Ready</div>
+            </div>
+          </div>
+
+          <!-- Merkle Chain Card -->
+          <div class="merkle-card border-card">
+            <div class="merkle-header">
+              <span class="mono card-title">MERKLE CHAIN HASH</span>
+              <span class="badge-valid mono" id="merkleValidBadge">VALID</span>
+            </div>
+            <div class="hash-display mono" id="merkleHashVal">a3f8901b...99e1</div>
+            <div class="merkle-actions">
+              <button class="btn btn-outline btn-sm" id="syncDiffBtn">Sync Diff Megtekintése</button>
+            </div>
+          </div>
+
+          <!-- Genome / Ethics Panel -->
+          <div class="genome-card border-card">
+            <div class="card-title mono">GENOME / ETIKA PANEL</div>
+            <ul class="ethics-list mono">
+              <li><span class="bullet">✓</span> RULE-001: Emberi autonómia védelme</li>
+              <li><span class="bullet">✓</span> RULE-002: Null-szerver adatvédelmi zár</li>
+              <li><span class="bullet">✓</span> RULE-003: Tamper-evident naplózás</li>
+            </ul>
+          </div>
+
+          <!-- Append Log -->
+          <div class="append-log-card border-card">
+            <div class="card-title mono">APPEND LOG / LIVE LISTA</div>
+            <div class="append-log-list mono" id="appendLogList">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+
+          <!-- System Actions -->
+          <div class="system-actions">
+            <button class="btn btn-outline btn-full" id="exportApv2Btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+              </svg>
+              <span>APv2 Exportálás (JSON)</span>
+            </button>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+
+    <!-- NOTIFICATION DRAWER / PANEL -->
+    <div class="notification-drawer hidden" id="notificationDrawer">
+      <div class="drawer-header">
+        <div class="drawer-title-group">
+          <img src="logo.svg" alt="HERMES Logo" class="drawer-logo" />
+          <h3 class="drawer-title">Rendszer Értesítések</h3>
+        </div>
+        <button class="close-btn" id="closeNotifDrawer">&times;</button>
+      </div>
+      <div class="drawer-body" id="notificationList">
+        <!-- Dynamically rendered custom notifications -->
+      </div>
+      <div class="drawer-footer">
+        <button class="btn btn-outline btn-sm" id="clearNotifsBtn">Minden olvasottnak jelölése</button>
+      </div>
+    </div>
+
+    <!-- MODAL: SYNC DIFF -->
+    <div class="modal-backdrop hidden" id="syncDiffModal">
+      <div class="modal-card border-card">
+        <div class="modal-header">
+          <h3 class="modal-title">Sync Diff — Állapot összehasonlítás</h3>
+          <button class="close-btn" id="closeSyncModal">&times;</button>
+        </div>
+        <div class="modal-body mono">
+          <div class="diff-view">
+            <div class="diff-line diff-old">- LOCAL_HEAD: 0x8a92b3c... (5 bejegyzés)</div>
+            <div class="diff-line diff-new">+ PROPOSED_SYNC: 0x8a92b3c... (Közvetlen egyezés - 0 eltérés)</div>
+            <div class="diff-line diff-info">i MERKLE_ROOT match: Integrity OK</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-copper btn-sm" id="confirmSyncBtn">Szinkron Jóváhagyása</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="adapters.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
