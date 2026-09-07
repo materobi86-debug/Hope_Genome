@@ -57,11 +57,29 @@ class FileSystemSyncAdapter {
   }
 }
 
-// 3. Model Router Adapter Interface (Octopus Runtime compatible)
+// 3. Model Router Adapter Interface (Octopus Runtime & OpenCode Zen compatible)
 class ModelRouterAdapter {
   constructor() {
     this.mode = 'LOCAL_ONLY';
     this.engineName = 'Octopus Runtime (Local Router)';
+    this.activeModel = 'opencode-zen-free';
+    this.availableModels = [
+      { id: 'opencode-zen-free', name: 'OpenCode Zen (Ingyenes / Local)', type: 'Free' },
+      { id: 'hope-local-v2', name: 'HOPE Local Core v2', type: 'Local' }
+    ];
+  }
+
+  setModel(modelId) {
+    const model = this.availableModels.find(m => m.id === modelId);
+    if (model) {
+      this.activeModel = model.id;
+      return model;
+    }
+    return null;
+  }
+
+  getActiveModel() {
+    return this.availableModels.find(m => m.id === this.activeModel);
   }
 
   async generateResponse(prompt) {

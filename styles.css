@@ -10,15 +10,15 @@
   --border-color: #2D354C;
   --border-focus: #3F4A6A;
 
-  --text-primary: #EEF0F6;
-  --text-secondary: #8F99B1;
-
   /* Strictly Enforced Semantic Colors */
   --signal-copper: #D88955; /* Human decision, live presence, deliberate action */
   --pale-copper: #F0AE7F;   /* Soft copper accents */
   --sync-turquoise: #80D6D4; /* Connection, sync, live status */
   --positive-green: #9AC4A0; /* Valid state, verified proof */
   --danger-red: #E05252;     /* Stop / emergency action */
+
+  --text-primary: #EEF0F6;
+  --text-secondary: #8F99B1;
 
   /* Typography */
   --font-heading: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -457,12 +457,36 @@ html, body {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
 }
 
 .block-headline {
   font-family: var(--font-heading);
   font-weight: 600;
   font-size: 1.2rem;
+}
+
+.thinking-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* Model Dropdown Selector */
+.model-select-dropdown {
+  background: var(--panel-bg-light);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: var(--radius-sm);
+  outline: none;
+  cursor: pointer;
+}
+
+.model-select-dropdown:hover {
+  border-color: var(--sync-turquoise);
 }
 
 /* Toggle switch */

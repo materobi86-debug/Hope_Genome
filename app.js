@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const messageStream = document.getElementById('messageStream');
   const composerInput = document.getElementById('composerInput');
   const sendBtn = document.getElementById('sendBtn');
+  const modelRouterSelect = document.getElementById('modelRouterSelect');
 
   const memorySizeVal = document.getElementById('memorySizeVal');
   const memoryAdapterText = document.getElementById('memoryAdapterText');
@@ -60,6 +61,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const closeSyncModal = document.getElementById('closeSyncModal');
   const confirmSyncBtn = document.getElementById('confirmSyncBtn');
   const exportApv2Btn = document.getElementById('exportApv2Btn');
+
+  // --- 0. Model Selector Handling ---
+  if (modelRouterSelect) {
+    modelRouterSelect.addEventListener('change', async (e) => {
+      const selectedModelId = e.target.value;
+      const model = adapters.modelRouter.setModel(selectedModelId);
+      if (model) {
+        await adapters.merkleChain.appendLog('MODEL_CHANGE', model.name);
+        addNotification("Modell Váltva", `A gondolati folyamat modellje: ${model.name}`, "copper");
+        updateSystemMetrics();
+      }
+    });
+  }
 
   // --- 1. Notification Management ---
   function addNotification(title, body, tone = 'copper') {
@@ -262,6 +276,7 @@ document.addEventListener('DOMContentLoaded', () => {
       merkleRoot: adapters.merkleChain.merkleRoot,
       logs: adapters.merkleChain.logs,
       messages: messages,
+      activeModel: adapters.modelRouter.getActiveModel(),
       genomeRules: [
         "RULE-001: Emberi autonómia védelme",
         "RULE-002: Null-szerver adatvédelmi zár",
