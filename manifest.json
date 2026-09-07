@@ -1,0 +1,17 @@
+{
+  "name": "HERMES SERVERLESS",
+  "short_name": "HERMES",
+  "description": "Privacy-first, local-first digital companion operating entirely in browser.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#10131F",
+  "theme_color": "#10131F",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
